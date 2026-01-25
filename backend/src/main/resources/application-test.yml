@@ -13,8 +13,13 @@ spring:
   flyway:
     enabled: false  # 测试环境不使用 Flyway
   
+  # 暂时禁用 Quartz 自动配置，避免配置冲突
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.quartz.QuartzAutoConfiguration
+  
   quartz:
-    job-store-type: memory  # 测试环境使用内存存储
+    job-store-type: memory
 
 logging:
   level:
