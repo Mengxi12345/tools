@@ -12,6 +12,9 @@ spring:
   
   flyway:
     enabled: false  # 测试环境不使用 Flyway
+  
+  quartz:
+    job-store-type: memory  # 测试环境使用内存存储
 
 logging:
   level:
