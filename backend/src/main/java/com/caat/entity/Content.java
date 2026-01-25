@@ -60,7 +60,7 @@ public class Content {
     @Column(name = "published_at", nullable = false)
     private LocalDateTime publishedAt;
 
-    @Column(columnDefinition = "jsonb")
+    @Column(columnDefinition = "CLOB")  // H2 不支持 jsonb，使用 CLOB
     private String metadata; // JSON 格式的元数据（点赞数、转发数等）
 
     @Column(nullable = false, unique = true)

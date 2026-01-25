@@ -7,11 +7,13 @@ spring:
   
   jpa:
     hibernate:
-      ddl-auto: update  # 自动创建/更新表结构
+      ddl-auto: create  # 自动创建表结构（测试环境）
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+        # H2 数据库特定配置
+        dialect: org.hibernate.dialect.H2Dialect
   
   flyway:
     enabled: false  # 测试环境不使用 Flyway

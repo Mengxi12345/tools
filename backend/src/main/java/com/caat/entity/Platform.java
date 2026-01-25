@@ -35,7 +35,7 @@ public class Platform {
     @Column(name = "auth_type")
     private String authType; // api_key, oauth
 
-    @Column(columnDefinition = "jsonb")
+    @Column(columnDefinition = "CLOB")  // H2 不支持 jsonb，使用 CLOB
     private String config; // JSON 格式的平台配置
 
     @Enumerated(EnumType.STRING)
