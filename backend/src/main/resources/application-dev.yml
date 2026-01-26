@@ -26,25 +26,13 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
   
+  # 暂时禁用 Quartz 自动配置，先验证数据库功能
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.quartz.QuartzAutoConfiguration
+  
   quartz:
-    job-store-type: jdbc
-    jdbc:
-      initialize-schema: never  # Flyway 已经创建了表
-    properties:
-      org:
-        quartz:
-          scheduler:
-            instanceName: ContentAggregatorScheduler
-            instanceId: AUTO
-          jobStore:
-            class: org.quartz.impl.jdbcjobstore.JobStoreTX
-            driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
-            tablePrefix: QRTZ_
-            isClustered: false
-          threadPool:
-            class: org.quartz.simpl.SimpleThreadPool
-            threadCount: 10
-            threadPriority: 5
+    job-store-type: memory  # 暂时使用内存存储
 
 logging:
   level:
