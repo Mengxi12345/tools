@@ -25,6 +25,26 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     validate-on-migrate: true
+  
+  quartz:
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never  # Flyway 已经创建了表
+    properties:
+      org:
+        quartz:
+          scheduler:
+            instanceName: ContentAggregatorScheduler
+            instanceId: AUTO
+          jobStore:
+            class: org.quartz.impl.jdbcjobstore.JobStoreTX
+            driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+            tablePrefix: QRTZ_
+            isClustered: false
+          threadPool:
+            class: org.quartz.simpl.SimpleThreadPool
+            threadCount: 10
+            threadPriority: 5
 
 logging:
   level:
