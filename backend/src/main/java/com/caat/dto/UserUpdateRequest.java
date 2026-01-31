@@ -12,6 +12,7 @@ import java.util.UUID;
 public class UserUpdateRequest {
     private String displayName;
     private String avatarUrl;
+    private String selfIntroduction;
     private UUID groupId;
     private List<String> tags;
     private Integer priority;

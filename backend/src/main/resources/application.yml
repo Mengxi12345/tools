@@ -1,7 +1,12 @@
 spring:
   application:
     name: content-aggregator
-  
+
+  # 开发热更新：classpath 变化时自动重启（仅开发时生效，打包 jar 不含 devtools）
+  devtools:
+    restart:
+      enabled: true
+
   datasource:
     url: jdbc:postgresql://localhost:5432/caat_db
     username: caat_user
@@ -23,6 +28,11 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
   
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+  
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -43,28 +53,41 @@ spring:
           max-idle: 8
           min-idle: 0
   
+  elasticsearch:
+    uris: http://localhost:9200
+    username:  # 如果有认证则填写
+    password:  # 如果有认证则填写
+    connection-timeout: 5s
+    socket-timeout: 60s
+  
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin
+    password: admin
+    virtual-host: /
+    listener:
+      simple:
+        acknowledge-mode: auto
+        concurrency: 5
+        max-concurrency: 10
+  
   quartz:
-    job-store-type: jdbc
+    # 开发环境改为使用内存存储，避免独立 Quartz 数据源配置问题
+    job-store-type: memory
     jdbc:
-      initialize-schema: always
-    properties:
-      org:
-        quartz:
-          scheduler:
-            instanceName: CaatScheduler
-            instanceId: AUTO
-          jobStore:
-            class: org.quartz.impl.jdbcjobstore.JobStoreTX
-            driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
-            tablePrefix: QRTZ_
-            isClustered: false
-          threadPool:
-            class: org.quartz.simpl.SimpleThreadPool
-            threadCount: 10
-            threadPriority: 5
+      initialize-schema: never
+
+# 上传文件存储目录（相对为项目工作目录下的 uploads）
+app:
+  upload-dir: uploads
 
 server:
   port: 8080
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,application/javascript,text/css
+    min-response-size: 1024
 
 springdoc:
   api-docs:
@@ -80,6 +103,17 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  health:
+    rabbit:
+      enabled: false  # 禁用RabbitMQ健康检查，因为它是可选服务
+  metrics:
+    export:
+      prometheus:
+        enabled: true
 
 logging:
   level:
@@ -90,3 +124,7 @@ logging:
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
     name: logs/application.log
+
+jwt:
+  secret: caat-secret-key-for-jwt-token-generation-minimum-256-bits-long-please-change-in-production
+  expiration: 86400000  # 24小时（毫秒）

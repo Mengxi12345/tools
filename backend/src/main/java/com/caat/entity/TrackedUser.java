@@ -1,5 +1,7 @@
 package com.caat.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -25,8 +27,9 @@ public class TrackedUser {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "platform_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Platform platform;
 
     @Column(nullable = false)
@@ -40,6 +43,10 @@ public class TrackedUser {
 
     @Column(name = "avatar_url")
     private String avatarUrl;
+
+    /** 平台用户简介（如 TimeStore profile/detail 拉取） */
+    @Column(name = "self_introduction", length = 2000)
+    private String selfIntroduction;
 
     @Column(name = "group_id")
     private UUID groupId; // 用户分组 ID（可选）
@@ -59,9 +66,11 @@ public class TrackedUser {
     private LocalDateTime lastFetchedAt;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<Content> contents = new ArrayList<>();
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private UserSchedule schedule;
 
     @CreationTimestamp

@@ -24,4 +24,4 @@ Thumbs.db
 
 # Application
 application-local.yml
-application-prod.yml
+# application-prod.yml 已作为模板提交，生产敏感值请用环境变量覆盖

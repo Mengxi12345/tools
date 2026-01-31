@@ -19,5 +19,8 @@ public class PlatformCreateRequest {
     
     private String authType;
     
+    /** 平台头像/Logo 图片 URL */
+    private String avatarUrl;
+    
     private String config; // JSON 字符串
 }

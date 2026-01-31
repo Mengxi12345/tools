@@ -23,11 +23,18 @@ public class ScheduleConfig {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "is_global_enabled", nullable = false)
-    private Boolean isGlobalEnabled = true;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false)
+    private ConfigType type;
 
-    @Column(name = "default_cron", nullable = false)
-    private String defaultCron = "0 0 */6 * * ?"; // 默认每6小时执行一次
+    @Column(name = "user_id")
+    private UUID userId; // 如果 type 为 USER，则此字段有值
+
+    @Column(name = "is_enabled", nullable = false)
+    private Boolean isEnabled = true;
+
+    @Column(name = "cron_expression")
+    private String cronExpression; // Cron 表达式，可选
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -36,4 +43,8 @@ public class ScheduleConfig {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    public enum ConfigType {
+        GLOBAL, USER
+    }
 }

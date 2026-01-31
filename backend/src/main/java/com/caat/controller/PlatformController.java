@@ -4,14 +4,17 @@ import com.caat.dto.ApiResponse;
 import com.caat.dto.PlatformCreateRequest;
 import com.caat.dto.PlatformUpdateRequest;
 import com.caat.entity.Platform;
+import com.caat.service.PlatformAvatarService;
 import com.caat.service.PlatformService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -22,13 +25,22 @@ import java.util.UUID;
 @RequestMapping("/api/v1/platforms")
 @RequiredArgsConstructor
 public class PlatformController {
-    
+
     private final PlatformService platformService;
+    private final PlatformAvatarService platformAvatarService;
     
     @Operation(summary = "获取平台列表", description = "获取所有已配置的平台")
     @GetMapping
     public ApiResponse<List<Platform>> getAllPlatforms() {
         return ApiResponse.success(platformService.getAllPlatforms());
+    }
+
+    /** 使用 /upload-avatar 固定路径，避免与 /{id} 或 /{id}/test 误匹配导致 NoResourceFoundException */
+    @Operation(summary = "上传平台头像", description = "上传图片文件，保存到本地并返回访问路径")
+    @PostMapping("/upload-avatar")
+    public ApiResponse<Map<String, String>> uploadAvatar(@RequestParam("file") MultipartFile file) {
+        String url = platformAvatarService.saveUploadedFile(file);
+        return ApiResponse.success(Map.of("url", url));
     }
     
     @Operation(summary = "获取平台详情", description = "根据 ID 获取平台详细信息")
@@ -45,6 +57,7 @@ public class PlatformController {
         platform.setType(request.getType());
         platform.setApiBaseUrl(request.getApiBaseUrl());
         platform.setAuthType(request.getAuthType());
+        platform.setAvatarUrl(request.getAvatarUrl());
         platform.setConfig(request.getConfig());
         platform.setStatus(Platform.PlatformStatus.ACTIVE);
         
@@ -58,9 +71,11 @@ public class PlatformController {
         @Valid @RequestBody PlatformUpdateRequest request
     ) {
         Platform platform = new Platform();
+        platform.setName(request.getName());
         platform.setType(request.getType());
         platform.setApiBaseUrl(request.getApiBaseUrl());
         platform.setAuthType(request.getAuthType());
+        platform.setAvatarUrl(request.getAvatarUrl());
         platform.setConfig(request.getConfig());
         if (request.getStatus() != null) {
             platform.setStatus(Platform.PlatformStatus.valueOf(request.getStatus()));

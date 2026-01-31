@@ -11,4 +11,6 @@ import java.util.UUID;
 public interface PlatformRepository extends JpaRepository<Platform, UUID> {
     Optional<Platform> findByName(String name);
     boolean existsByName(String name);
+    /** 是否存在同名且 ID 不同的平台（用于更新时排除自身） */
+    boolean existsByNameAndIdNot(String name, UUID id);
 }

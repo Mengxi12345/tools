@@ -1,0 +1,74 @@
+{
+  "succeeded": true,
+  "resp_data": {
+    "footprints": [
+      {
+        "type": "topic",
+        "topic": {
+          "topic_id": 55188555814412154,
+          "topic_uid": "55188555814412154",
+          "group": {
+            "group_id": 88885511211582,
+            "name": "刘少小酒馆",
+            "type": "pay"
+          },
+          "type": "solution",
+          "solution": {
+            "task_id": 584142841454814,
+            "task_uid": "584142841454814",
+            "owner": {
+              "user_id": 844151512144842,
+              "name": "艾小米",
+              "avatar_url": "https://images.zsxq.com/xxx",
+              "location": "广东"
+            },
+            "text": "",
+            "images": [
+              {
+                "image_id": 5122822242818884,
+                "type": "jpg",
+                "thumbnail": { "url": "https://images.zsxq.com/thumb.jpg", "width": 750, "height": 702 },
+                "large": { "url": "https://images.zsxq.com/large.jpg", "width": 800, "height": 749 },
+                "original": { "url": "https://images.zsxq.com/original.jpg", "width": 1154, "height": 1080, "size": 118576 }
+              }
+            ]
+          },
+          "likes_count": 6,
+          "comments_count": 0,
+          "readers_count": 192,
+          "create_time": "2026-01-31T19:46:48.131+0800",
+          "title": "【图片】"
+        }
+      },
+      {
+        "type": "topic",
+        "topic": {
+          "topic_id": 22811228552481121,
+          "topic_uid": "22811228552481121",
+          "group": {
+            "group_id": 88885511211582,
+            "name": "刘少小酒馆",
+            "type": "pay"
+          },
+          "type": "solution",
+          "solution": {
+            "task_id": 584142841454814,
+            "task_uid": "584142841454814",
+            "owner": {
+              "user_id": 844151512144842,
+              "name": "艾小米",
+              "avatar_url": "https://images.zsxq.com/xxx",
+              "location": "广东"
+            },
+            "text": "第一条还没看，手表上就看到了第二条说\"上升到被jin yan的高度，这事更不好办了\"然后进来看，这条也没有了，所以，第一条谁看到了？"
+          },
+          "likes_count": 19,
+          "comments_count": 17,
+          "readers_count": 1080,
+          "create_time": "2026-01-26T14:10:56.581+0800",
+          "title": "第一条还没看，手表上就看到了第二条说\"上升到被jin yan的高度..."
+        }
+      }
+    ]
+  }
+}

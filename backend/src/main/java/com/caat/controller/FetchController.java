@@ -4,12 +4,17 @@ import com.caat.dto.ApiResponse;
 import com.caat.dto.BatchFetchRequest;
 import com.caat.dto.FetchRequest;
 import com.caat.entity.FetchTask;
+import com.caat.entity.TrackedUser;
 import com.caat.repository.FetchTaskRepository;
+import com.caat.repository.TrackedUserRepository;
 import com.caat.service.ContentFetchService;
+import com.caat.exception.BusinessException;
+import com.caat.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +27,7 @@ import java.util.UUID;
 /**
  * 内容拉取控制器
  */
+@Slf4j
 @Tag(name = "内容拉取", description = "手动刷新和任务管理接口")
 @RestController
 @RequestMapping("/api/v1")
@@ -30,6 +36,7 @@ public class FetchController {
     
     private final ContentFetchService contentFetchService;
     private final FetchTaskRepository fetchTaskRepository;
+    private final TrackedUserRepository trackedUserRepository;
     
     @Operation(summary = "刷新用户内容", description = "手动触发拉取指定用户的内容")
     @PostMapping("/users/{id}/fetch")
@@ -37,23 +44,38 @@ public class FetchController {
         @PathVariable UUID id,
         @RequestBody(required = false) FetchRequest request
     ) {
-        LocalDateTime startTime = request != null && request.getStartTime() != null 
-            ? request.getStartTime() 
-            : null; // 如果为 null，Service 层会使用最后拉取时间
+        String fetchMode = request != null && "fast".equalsIgnoreCase(request.getFetchMode()) ? "fast" : "normal";
+        // 完整拉取时不传日期参数，逐页 50 条直到无数据；快速拉取或指定了时间范围时才传 start/end
+        LocalDateTime startTime;
+        LocalDateTime endTime;
+        if ("normal".equalsIgnoreCase(fetchMode)
+            && (request == null || (request.getStartTime() == null && request.getEndTime() == null))) {
+            startTime = null;
+            endTime = null;
+        } else {
+            startTime = request != null && request.getStartTime() != null ? request.getStartTime() : null;
+            endTime = request != null && request.getEndTime() != null ? request.getEndTime() : LocalDateTime.now();
+        }
+        log.info("刷新内容请求: userId={}, startTime={}, endTime={}, fetchMode={}", id, startTime, endTime, fetchMode);
         
-        LocalDateTime endTime = LocalDateTime.now();
+        // 验证用户存在
+        TrackedUser user = trackedUserRepository.findById(id)
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         
         // 创建任务记录
         FetchTask task = new FetchTask();
+        task.setUser(user);
         task.setTaskType(FetchTask.TaskType.MANUAL);
         task.setStartTime(startTime);
         task.setEndTime(endTime);
         task.setStatus(FetchTask.TaskStatus.PENDING);
         task = fetchTaskRepository.save(task);
         
-        // 异步执行
-        contentFetchService.fetchUserContentAsync(id, startTime, endTime);
+        // 异步执行（传入已创建的任务ID 与拉取模式）
+        contentFetchService.fetchUserContentAsync(id, startTime, endTime, fetchMode, task.getId());
         
+        // 重新加载带 user 的任务，避免序列化时懒加载导致前端拿不到用户信息
+        task = fetchTaskRepository.findByIdWithUser(task.getId()).orElse(task);
         return ApiResponse.success(task);
     }
     

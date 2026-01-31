@@ -18,6 +18,9 @@ public enum ErrorCode {
     // 业务错误 2000-2999
     PLATFORM_NOT_FOUND(2001, "平台不存在"),
     PLATFORM_ALREADY_EXISTS(2002, "平台已存在"),
+    PLATFORM_CONNECTION_FAILED(2008, "平台连接失败"),
+    PLATFORM_USER_NOT_FOUND(2009, "平台用户不存在"),
+    PLATFORM_API_ERROR(2010, "平台 API 调用失败"),
     USER_NOT_FOUND(2003, "用户不存在"),
     USER_ALREADY_EXISTS(2004, "用户已存在"),
     CONTENT_NOT_FOUND(2005, "内容不存在"),

@@ -9,6 +9,7 @@ import com.caat.exception.ErrorCode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 平台适配器接口
@@ -62,4 +63,14 @@ public interface PlatformAdapter {
      * @return 是否有效
      */
     boolean validateUserId(String userId, Map<String, Object> config) throws BusinessException;
+
+    /**
+     * 拉取平台用户资料（头像、简介等），仅部分平台支持（如 TimeStore profile/detail）
+     * @param userId 平台用户 ID
+     * @param config 平台配置
+     * @return 若有资料则返回 map，key 为 userAvatar、selfIntroduction 等；不支持则 empty
+     */
+    default Optional<Map<String, String>> getProfileDetail(String userId, Map<String, Object> config) throws BusinessException {
+        return Optional.empty();
+    }
 }

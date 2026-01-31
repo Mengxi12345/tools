@@ -8,6 +8,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -44,6 +45,16 @@ public class GlobalExceptionHandler {
         log.warn("参数验证失败: {}", errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(ErrorCode.BAD_REQUEST.getCode(), "参数验证失败"));
+    }
+
+    /**
+     * 处理 Spring Boot 3.2+ 未匹配到控制器时的 NoResourceFoundException，返回 404 而非 500
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNoResourceFound(NoResourceFoundException e) {
+        log.warn("未找到资源: {}", e.getResourcePath());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ErrorCode.NOT_FOUND.getCode(), "接口不存在"));
     }
 
     /**

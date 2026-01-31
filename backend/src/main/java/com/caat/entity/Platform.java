@@ -1,11 +1,14 @@
 package com.caat.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -35,7 +38,12 @@ public class Platform {
     @Column(name = "auth_type")
     private String authType; // api_key, oauth
 
-    @Column(columnDefinition = "CLOB")  // H2 不支持 jsonb，使用 CLOB
+    /** 平台头像/Logo URL，用于列表与展示 */
+    @Column(name = "avatar_url", length = 512)
+    private String avatarUrl;
+
+    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String config; // JSON 格式的平台配置
 
     @Enumerated(EnumType.STRING)

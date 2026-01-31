@@ -1,0 +1,36 @@
+# 生产环境配置（可通过环境变量覆盖）
+# 使用方式：SPRING_PROFILES_ACTIVE=prod 或 --spring.profiles.active=prod
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/caat_db}
+    username: ${SPRING_DATASOURCE_USERNAME:caat_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:caat_password}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+  
+  jpa:
+    show-sql: false
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+  
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:admin}
+    password: ${RABBITMQ_PASSWORD:admin}
+
+logging:
+  level:
+    root: WARN
+    com.caat: INFO
+
+# 生产环境建议通过环境变量设置 JWT 密钥
+# jwt.secret=${JWT_SECRET}
+# jwt.expiration=${JWT_EXPIRATION:86400000}

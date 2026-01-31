@@ -1,11 +1,15 @@
 package com.caat.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -24,6 +28,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Content {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -31,10 +36,12 @@ public class Content {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "platform_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Platform platform;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private TrackedUser user;
 
     @Column(name = "content_id", nullable = false)
@@ -60,7 +67,8 @@ public class Content {
     @Column(name = "published_at", nullable = false)
     private LocalDateTime publishedAt;
 
-    @Column(columnDefinition = "CLOB")  // H2 不支持 jsonb，使用 CLOB
+    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String metadata; // JSON 格式的元数据（点赞数、转发数等）
 
     @Column(nullable = false, unique = true)
@@ -78,6 +86,7 @@ public class Content {
         joinColumns = @JoinColumn(name = "content_id"),
         inverseJoinColumns = @JoinColumn(name = "tag_id")
     )
+    @BatchSize(size = 20)
     private List<Tag> tags = new ArrayList<>();
 
     @Column(columnDefinition = "text")
