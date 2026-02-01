@@ -1,0 +1,155 @@
+/**
+ * 设计令牌 — 与 docs/UI_DESIGN_SPEC.md 对应
+ * 浅色：莫兰迪 | 深色：霓虹点缀
+ * 使用方式：在根节点加 class="theme-light" 或 "theme-dark"
+ */
+
+/* ---------- 浅色主题（莫兰迪） ---------- */
+.theme-light,
+:root {
+  /* 主色 */
+  --color-primary: #6B7B8C;
+  --color-primary-light: #9BA8B5;
+  --color-primary-hover: #5A6878;
+  /* 辅助色 */
+  --color-accent: #8B9A7A;
+  --color-accent-light: #A8B598;
+  /* 背景 */
+  --color-bg-page: #F5F4F1;
+  --color-bg-card: #FFFFFF;
+  --color-bg-elevated: #FFFFFF;
+  /* 文字 */
+  --color-text-primary: #2C2C2C;
+  --color-text-secondary: #6B6B6B;
+  --color-text-tertiary: #9A9A9A;
+  /* 边框 */
+  --color-border: #E5E3DF;
+  --color-border-light: #EFEDE9;
+  /* 阴影 */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-nav: 0 1px 0 rgba(0, 0, 0, 0.06);
+  /* 毛玻璃导航 */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(0, 0, 0, 0.06);
+}
+
+/* ---------- 深色主题（霓虹点缀） ---------- */
+.theme-dark {
+  --color-primary: #00D4AA;
+  --color-primary-light: #33DEBB;
+  --color-primary-hover: #00B894;
+  --color-accent: #7B61FF;
+  --color-accent-light: #9B81FF;
+  --color-bg-page: #0F0F12;
+  --color-bg-card: #1A1A1F;
+  --color-bg-elevated: #242429;
+  --color-text-primary: #F0F0F2;
+  --color-text-secondary: #A0A0A8;
+  --color-text-tertiary: #6B6B72;
+  --color-border: #2E2E34;
+  --color-border-light: #25252A;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-nav: 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(20, 20, 24, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- 字号层级 ---------- */
+:root {
+  --font-family-base: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+  --font-family-mono: "JetBrains Mono", "SF Mono", monospace;
+
+  --text-h1-size: 1.75rem;   /* 28px */
+  --text-h1-height: 1.25;
+  --text-h1-weight: 700;
+
+  --text-h2-size: 1.375rem; /* 22px */
+  --text-h2-height: 1.3;
+  --text-h2-weight: 600;
+
+  --text-h3-size: 1.125rem; /* 18px */
+  --text-h3-height: 1.35;
+  --text-h3-weight: 600;
+
+  --text-body-size: 1rem;   /* 16px */
+  --text-body-height: 1.6;
+  --text-body-weight: 400;
+
+  --text-body-sm-size: 0.875rem;  /* 14px */
+  --text-body-sm-height: 1.5;
+  --text-caption-size: 0.75rem;   /* 12px */
+  --text-caption-height: 1.4;
+}
+
+/* ---------- 间距与圆角 ---------- */
+:root {
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.4s ease;
+}
+
+/* ---------- 组件类（可选，直接复用） ---------- */
+.ds-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+}
+.ds-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.ds-nav-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* 骨架屏呼吸动画 */
+@keyframes ds-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.ds-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 25%,
+    var(--color-border-light) 50%,
+    var(--color-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: ds-shimmer 1.2s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* 列表项淡入上移 */
+@keyframes ds-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.ds-fade-up {
+  animation: ds-fade-up 0.4s ease forwards;
+}

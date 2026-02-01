@@ -8,9 +8,16 @@ import com.caat.repository.ScheduleConfigRepository;
 import com.caat.repository.TrackedUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
+import org.quartz.TriggerKey;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,9 +35,13 @@ public class ScheduleService {
     /** 内容拉取定时任务执行间隔（与 QuartzConfig 中一致） */
     public static final String SCHEDULE_INTERVAL_DESCRIPTION = "每10分钟";
 
+    /** Quartz 中内容拉取触发器的名称（与 QuartzConfig 中一致） */
+    private static final String CONTENT_FETCH_TRIGGER_NAME = "contentFetchTrigger";
+
     private final ScheduleConfigRepository scheduleConfigRepository;
     private final FetchTaskRepository fetchTaskRepository;
     private final TrackedUserRepository trackedUserRepository;
+    private final Scheduler scheduler;
 
     /**
      * 获取全局定时任务状态
@@ -98,8 +109,29 @@ public class ScheduleService {
         Map<String, Object> detail = new HashMap<>();
         detail.put("isEnabled", getGlobalScheduleStatus());
         detail.put("interval", SCHEDULE_INTERVAL_DESCRIPTION);
-        detail.put("triggerName", "contentFetchTrigger");
+        detail.put("triggerName", CONTENT_FETCH_TRIGGER_NAME);
         detail.put("jobName", "contentFetchJob");
+
+        try {
+            TriggerKey triggerKey = new TriggerKey(CONTENT_FETCH_TRIGGER_NAME, Scheduler.DEFAULT_GROUP);
+            var trigger = scheduler.getTrigger(triggerKey);
+            if (trigger != null) {
+                java.util.Date next = trigger.getNextFireTime();
+                if (next != null) {
+                    ZonedDateTime nextZdt = Instant.ofEpochMilli(next.getTime()).atZone(ZoneId.systemDefault());
+                    detail.put("nextFireTime", nextZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+                    detail.put("nextFireTimeEpoch", next.getTime());
+                }
+                java.util.Date prev = trigger.getPreviousFireTime();
+                if (prev != null) {
+                    ZonedDateTime prevZdt = Instant.ofEpochMilli(prev.getTime()).atZone(ZoneId.systemDefault());
+                    detail.put("previousFireTime", prevZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+                }
+            }
+        } catch (SchedulerException e) {
+            log.warn("获取 Quartz 触发器下次执行时间失败", e);
+            detail.put("nextFireTimeError", e.getMessage());
+        }
 
         java.util.List<FetchTask> running = fetchTaskRepository.findByStatus(FetchTask.TaskStatus.RUNNING);
         long scheduledRunning = running.stream()

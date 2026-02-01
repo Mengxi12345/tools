@@ -14,7 +14,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true  # 开发环境显示 SQL
+    show-sql: false  # SQL 通过 logger 输出，需看 SQL 时设置 logging.level.org.hibernate.SQL=DEBUG
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -26,13 +26,14 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
   
-  # 启用 Quartz 定时任务（内容拉取每 6 小时执行）
+  # Quartz 定时任务：JDBC 存储，与主库共用 PostgreSQL（表由 Flyway V16 创建）
   quartz:
-    job-store-type: memory  # 暂时使用内存存储
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never
 
 logging:
   level:
     root: INFO
     com.caat: DEBUG
-    org.springframework.web: DEBUG
-    org.hibernate.SQL: DEBUG
+    # 以下仅在需要排查时改为 DEBUG：org.springframework.web、org.hibernate.SQL

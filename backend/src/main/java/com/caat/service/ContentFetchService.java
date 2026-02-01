@@ -428,7 +428,12 @@ public class ContentFetchService {
         
         Content saved = contentRepository.save(content);
         log.info("[保存排查] 保存内容成功: contentId={}, id={}", platformContent.getContentId(), saved.getId());
-        // 刷新内容仅做拉取+落库，不做 ES 索引、通知等其它逻辑
+        // 触发通知规则（如 QQ 群推送）：异步避免阻塞拉取
+        try {
+            notificationService.checkAndNotify(saved);
+        } catch (Exception e) {
+            log.warn("通知规则检查或发送失败: contentId={}", saved.getId(), e);
+        }
         return saved;
     }
     

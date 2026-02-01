@@ -3,6 +3,7 @@ package com.caat.controller;
 import com.caat.dto.ApiResponse;
 import com.caat.entity.Notification;
 import com.caat.service.NotificationManagementService;
+import com.caat.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -23,8 +24,9 @@ import java.util.UUID;
 @RequestMapping("/api/v1/notifications")
 @RequiredArgsConstructor
 public class NotificationController {
-    
+
     private final NotificationManagementService notificationManagementService;
+    private final NotificationService notificationService;
     
     @Operation(summary = "获取通知列表", description = "分页获取通知列表，支持按已读状态过滤")
     @GetMapping
@@ -78,5 +80,18 @@ public class NotificationController {
     @GetMapping("/{id}")
     public ApiResponse<Notification> getNotification(@PathVariable UUID id) {
         return ApiResponse.success(notificationManagementService.getNotificationById(id));
+    }
+
+    @Operation(summary = "按配置测试下发", description = "不依赖已保存规则，按传入的规则类型与配置发送一条测试消息到 QQ 群/飞书")
+    @PostMapping("/test-with-config")
+    public ApiResponse<Map<String, Object>> testWithConfig(@RequestBody Map<String, Object> body) {
+        String ruleType = body != null && body.get("ruleType") != null ? body.get("ruleType").toString().trim() : null;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> config = body != null && body.get("config") instanceof Map ? (Map<String, Object>) body.get("config") : null;
+        String error = notificationService.sendTestMessageWithConfig(ruleType, config);
+        if (error == null) {
+            return ApiResponse.success(Map.of("success", true, "message", "测试消息已发送"));
+        }
+        return ApiResponse.success(Map.of("success", false, "message", error));
     }
 }

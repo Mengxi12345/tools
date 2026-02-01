@@ -19,6 +19,59 @@ import { useNavigate } from 'react-router-dom';
 
 const { Text } = Typography;
 
+function AuthorColumn({
+  col,
+  formatFriendlyTime,
+  getContentOriginalUrl,
+  navigate,
+}: {
+  col: { authorKey: string; authorName: string; authorAvatar?: string; items: ContentItem[] };
+  formatFriendlyTime: (publishedAt: string) => string;
+  getContentOriginalUrl: (record: ContentItem) => string | undefined;
+  navigate: (path: string) => void;
+}) {
+  return (
+    <>
+      <div className="dashboard-author-column__head">
+        {col.authorAvatar ? (
+          <Avatar src={col.authorAvatar} size={40} className="dashboard-author-column__avatar" />
+        ) : (
+          <Avatar size={40} icon={<UserOutlined />} className="dashboard-author-column__avatar dashboard-author-column__avatar--default" />
+        )}
+        <div className="dashboard-author-column__info">
+          <span className="dashboard-author-column__name">{col.authorName}</span>
+          <span className="dashboard-author-column__count">{col.items.length} 篇</span>
+        </div>
+      </div>
+      <div className="dashboard-author-column__list">
+        {col.items.map((record, i) => {
+          const originalUrl = getContentOriginalUrl(record);
+          return (
+            <article key={record.id} className="dashboard-article-card ds-fade-up" style={{ animationDelay: `${i * 0.05}s` }}>
+              <h3 className="dashboard-article-card__title">
+                <a href={originalUrl || '#'} target="_blank" rel="noopener noreferrer" onClick={(e) => !originalUrl && e.preventDefault()}>
+                  {record.title || '无标题'}
+                </a>
+              </h3>
+              <div className="dashboard-article-card__meta">
+                <span className="dashboard-article-card__platform">{record.platform?.name ?? '—'}</span>
+                <span className="dashboard-article-card__time">{formatFriendlyTime(record.publishedAt)}</span>
+                {record.isFavorite && <StarFilled className="dashboard-article-card__star" />}
+                <span className="dashboard-article-card__actions">
+                  <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => navigate(`/contents/${record.id}`)} className="dashboard-article-card__btn">详情</Button>
+                  {originalUrl && (
+                    <Button type="text" size="small" icon={<LinkOutlined />} href={originalUrl} target="_blank" rel="noopener noreferrer" className="dashboard-article-card__btn">原文</Button>
+                  )}
+                </span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 interface ContentItem {
   id: string;
   title: string;
@@ -187,11 +240,14 @@ function Dashboard() {
   }
 
   const byAuthor = groupByAuthor(lastThreeDaysContents);
+  const heroCol = byAuthor[0];
+  const sideCol = byAuthor[1];
+  const restCols = byAuthor.slice(2);
 
   return (
     <MainLayout>
       <div className="dashboard-page">
-        {/* 顶部紧凑区：标题 + 统计 + 操作 一行/紧凑排布 */}
+        {/* 顶部：标题 + 统计 + 操作 */}
         <header className="dashboard-header">
           <div className="dashboard-header__top">
             <h1 className="dashboard-title">仪表盘</h1>
@@ -254,28 +310,26 @@ function Dashboard() {
           </div>
         </header>
 
-        {/* 最近三天文章 - 按作者分栏，主内容区占更多空间 */}
-        <Card
-          className="dashboard-articles-card"
-          title={
-            <span className="dashboard-articles-title">
+        {/* Bento：最近三天 · 按作者分栏 */}
+        <section className="dashboard-section">
+          <div className="dashboard-section__head">
+            <span className="dashboard-section__title">
               <CalendarOutlined />
               最近三天 · 按作者分栏
             </span>
-          }
-          extra={
-            lastThreeDaysContents.length > 0 && (
-              <span className="dashboard-articles-extra">
-                <span className="dashboard-articles-extra__num">{lastThreeDaysContents.length}</span> 篇
-                <span className="dashboard-articles-extra__divider">·</span>
-                <span className="dashboard-articles-extra__num">{byAuthor.length}</span> 位作者
+            {lastThreeDaysContents.length > 0 && (
+              <span className="dashboard-section__extra">
+                {lastThreeDaysContents.length} 篇 · {byAuthor.length} 位作者
               </span>
-            )
-          }
-          loading={loading}
-          bordered={false}
-        >
-          {lastThreeDaysContents.length === 0 && !loading ? (
+            )}
+          </div>
+
+          {loading ? (
+            <div className="dashboard-skeleton">
+              <div className="ds-skeleton dashboard-skeleton__block" style={{ height: 280 }} />
+              <div className="ds-skeleton dashboard-skeleton__block" style={{ height: 280 }} />
+            </div>
+          ) : lastThreeDaysContents.length === 0 ? (
             <div className="dashboard-empty">
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -283,112 +337,68 @@ function Dashboard() {
               />
             </div>
           ) : (
-            <div className="dashboard-articles-by-author">
-              {byAuthor.map((col) => (
-                <div key={col.authorKey} className="dashboard-author-column">
-                  <div className="dashboard-author-column__head">
-                    {col.authorAvatar ? (
-                      <Avatar src={col.authorAvatar} size={40} className="dashboard-author-column__avatar" />
-                    ) : (
-                      <Avatar size={40} icon={<UserOutlined />} className="dashboard-author-column__avatar dashboard-author-column__avatar--default" />
-                    )}
-                    <div className="dashboard-author-column__info">
-                      <span className="dashboard-author-column__name">{col.authorName}</span>
-                      <span className="dashboard-author-column__count">{col.items.length} 篇</span>
+            <>
+              {/* Bento 首行：Hero(8) + Side(4)，仅一位作者时 Hero 占满 */}
+              <div className="dashboard-bento">
+                {heroCol && (
+                  <div className={`dashboard-bento__hero ds-card ${!sideCol ? 'dashboard-bento__hero--full' : ''}`}>
+                    <AuthorColumn col={heroCol} formatFriendlyTime={formatFriendlyTime} getContentOriginalUrl={getContentOriginalUrl} navigate={navigate} />
+                  </div>
+                )}
+                {sideCol && (
+                  <div className="dashboard-bento__side ds-card">
+                    <AuthorColumn col={sideCol} formatFriendlyTime={formatFriendlyTime} getContentOriginalUrl={getContentOriginalUrl} navigate={navigate} />
+                  </div>
+                )}
+              </div>
+              {/* 其余作者：3 列网格 */}
+              {restCols.length > 0 && (
+                <div className="dashboard-grid">
+                  {restCols.map((col) => (
+                    <div key={col.authorKey} className="ds-card dashboard-author-column">
+                      <AuthorColumn col={col} formatFriendlyTime={formatFriendlyTime} getContentOriginalUrl={getContentOriginalUrl} navigate={navigate} />
                     </div>
-                  </div>
-                  <div className="dashboard-author-column__list">
-                    {col.items.map((record) => {
-                      const originalUrl = getContentOriginalUrl(record);
-                      return (
-                        <article key={record.id} className="dashboard-article-card">
-                          <h3 className="dashboard-article-card__title">
-                            <a
-                              href={originalUrl || '#'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => !originalUrl && e.preventDefault()}
-                            >
-                              {record.title || '无标题'}
-                            </a>
-                          </h3>
-                          <div className="dashboard-article-card__meta">
-                            <span className="dashboard-article-card__platform">{record.platform?.name ?? '—'}</span>
-                            <span className="dashboard-article-card__time">{formatFriendlyTime(record.publishedAt)}</span>
-                            {record.isFavorite && <StarFilled className="dashboard-article-card__star" />}
-                            <span className="dashboard-article-card__actions">
-                              <Button
-                                type="text"
-                                size="small"
-                                icon={<EyeOutlined />}
-                                onClick={() => navigate(`/contents/${record.id}`)}
-                                className="dashboard-article-card__btn"
-                              >
-                                详情
-                              </Button>
-                              {originalUrl && (
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  icon={<LinkOutlined />}
-                                  href={originalUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="dashboard-article-card__btn"
-                                >
-                                  原文
-                                </Button>
-                              )}
-                            </span>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
-        </Card>
+        </section>
       </div>
 
       <style>{`
         .dashboard-page {
-          padding: 0 16px 24px;
+          padding: 0 var(--space-md) var(--space-lg);
           max-width: 1280px;
           margin: 0 auto;
         }
 
-        /* 顶部紧凑区：标题 + 统计 + 操作 */
         .dashboard-header {
-          margin-bottom: 16px;
-          padding: 12px 16px 14px;
-          border-radius: 12px;
-          border: 1px solid rgba(0,0,0,0.06);
-          background: #fafbfc;
+          margin-bottom: var(--space-lg);
+          padding: var(--space-md) var(--space-lg);
+          border-radius: var(--radius-lg);
+          border: 1px solid var(--color-border);
+          background: var(--color-bg-elevated);
         }
         .dashboard-header__top {
           display: flex;
           align-items: center;
-          gap: 12px;
-          margin-bottom: 12px;
+          gap: var(--space-md);
+          margin-bottom: var(--space-md);
           flex-wrap: wrap;
         }
         .dashboard-title {
           margin: 0;
-          font-size: 20px;
-          font-weight: 700;
+          font-size: var(--text-h1-size);
+          font-weight: var(--text-h1-weight);
           letter-spacing: -0.02em;
-          line-height: 1.3;
-          background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
+          line-height: 1.25;
+          color: var(--color-text-primary);
         }
         .dashboard-subtitle {
-          font-size: 12px;
-          color: #8c8c8c;
-          margin-left: 4px;
+          font-size: var(--text-caption-size);
+          color: var(--color-text-tertiary);
+          margin-left: var(--space-xs);
         }
         .dashboard-refresh-btn { margin-left: auto; }
 
@@ -396,16 +406,16 @@ function Dashboard() {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          gap: 16px 24px;
+          gap: var(--space-md) var(--space-lg);
         }
         .dashboard-stat-item {
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 8px 14px;
-          border-radius: 10px;
-          background: #fff;
-          border: 1px solid rgba(0,0,0,0.05);
+          padding: var(--space-sm) var(--space-md);
+          border-radius: var(--radius-md);
+          background: var(--color-bg-card);
+          border: 1px solid var(--color-border-light);
           min-width: 0;
         }
         .dashboard-stat-item .dashboard-stat-icon {
@@ -414,179 +424,184 @@ function Dashboard() {
           justify-content: center;
           width: 32px;
           height: 32px;
-          border-radius: 8px;
+          border-radius: var(--radius-sm);
           font-size: 14px;
           flex-shrink: 0;
         }
         .dashboard-stat-item .dashboard-stat-value {
-          font-size: 18px;
+          font-size: var(--text-h3-size);
           font-weight: 700;
           line-height: 1.2;
           display: block;
+          color: var(--color-text-primary);
         }
         .dashboard-stat-item .dashboard-stat-label {
-          font-size: 11px;
-          color: #8c8c8c;
+          font-size: var(--text-caption-size);
+          color: var(--color-text-tertiary);
           font-weight: 500;
         }
-        .dashboard-stat-item--total .dashboard-stat-icon { background: #e8eef4; color: #1a1a2e; }
-        .dashboard-stat-item--total .dashboard-stat-value { color: #1a1a2e; }
-        .dashboard-stat-item--unread .dashboard-stat-icon { background: #fff0f6; color: #c41d7f; }
-        .dashboard-stat-item--unread .dashboard-stat-value { color: #c41d7f; }
-        .dashboard-stat-item--users .dashboard-stat-icon { background: #e6f4ff; color: #0f3460; }
-        .dashboard-stat-item--users .dashboard-stat-value { color: #0f3460; }
-        .dashboard-stat-item--platforms .dashboard-stat-icon { background: #f6ffed; color: #389e0d; }
-        .dashboard-stat-item--platforms .dashboard-stat-value { color: #389e0d; }
+        .dashboard-stat-item--total .dashboard-stat-icon { background: var(--color-primary-light); color: var(--color-primary); opacity: 0.9; }
+        .dashboard-stat-item--unread .dashboard-stat-icon { background: var(--color-accent-light); color: var(--color-accent); opacity: 0.9; }
+        .dashboard-stat-item--users .dashboard-stat-icon { color: var(--color-primary); opacity: 0.9; }
+        .dashboard-stat-item--platforms .dashboard-stat-icon { color: var(--color-accent); opacity: 0.9; }
         .dashboard-header__actions {
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: var(--space-md);
           margin-left: auto;
         }
-        .dashboard-schedule {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
+        .dashboard-schedule { display: flex; align-items: center; gap: var(--space-sm); }
         .dashboard-schedule .ant-switch { margin: 0; }
 
-        /* 最近三天文章 - 主内容区占更多空间 */
-        .dashboard-articles-card {
-          border-radius: 12px;
-          box-shadow: 0 1px 8px rgba(0,0,0,0.05);
-          border: 1px solid rgba(0,0,0,0.06);
+        .dashboard-section {
+          margin-top: var(--space-xl);
         }
-        .dashboard-articles-card .ant-card-head {
-          border-bottom: 1px solid rgba(0,0,0,0.06);
-          padding: 12px 20px;
-          min-height: 48px;
+        .dashboard-section__head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: var(--space-lg);
+          padding: 0 var(--space-xs);
         }
-        .dashboard-articles-title {
+        .dashboard-section__title {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          font-size: 15px;
-          font-weight: 600;
-          color: #1a1a2e;
+          gap: var(--space-sm);
+          font-size: var(--text-h2-size);
+          font-weight: var(--text-h2-weight);
+          color: var(--color-text-primary);
         }
-        .dashboard-articles-title .anticon { color: #0f3460; font-size: 16px; }
-        .dashboard-articles-extra {
-          font-size: 12px;
-          color: #8c8c8c;
+        .dashboard-section__title .anticon { color: var(--color-primary); }
+        .dashboard-section__extra {
+          font-size: var(--text-caption-size);
+          color: var(--color-text-tertiary);
         }
-        .dashboard-articles-extra__num {
-          font-weight: 600;
-          color: #1a1a2e;
+
+        .dashboard-bento {
+          display: grid;
+          grid-template-columns: repeat(12, 1fr);
+          gap: var(--space-lg);
+          margin-bottom: var(--space-lg);
         }
-        .dashboard-articles-extra__divider {
-          margin: 0 4px;
-          color: #bfbfbf;
+        .dashboard-bento__hero {
+          grid-column: span 8;
+          padding: 0;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
         }
-        .dashboard-articles-card .ant-card-body { padding: 16px 20px; }
+        .dashboard-bento__hero--full { grid-column: span 12; }
+        .dashboard-bento__hero .dashboard-author-column__list { max-height: min(520px, 50vh); }
+        .dashboard-bento__side {
+          grid-column: span 4;
+          padding: 0;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        .dashboard-bento__side .dashboard-author-column__list { max-height: min(520px, 50vh); }
+
+        .dashboard-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: var(--space-lg);
+        }
+        .dashboard-grid .dashboard-author-column {
+          padding: 0;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        .dashboard-grid .dashboard-author-column__list { max-height: min(400px, 40vh); }
+
+        .dashboard-skeleton {
+          display: grid;
+          grid-template-columns: 2fr 1fr;
+          gap: var(--space-lg);
+        }
+        .dashboard-skeleton__block { border-radius: var(--radius-lg); }
 
         .dashboard-empty {
-          padding: 40px 20px;
+          padding: var(--space-2xl) var(--space-lg);
           text-align: center;
         }
-        .dashboard-empty .ant-empty-description { color: #8c8c8c; font-size: 13px; }
+        .dashboard-empty .ant-empty-description { color: var(--color-text-tertiary); font-size: var(--text-body-sm-size); }
 
-        .dashboard-articles-by-author {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 16px;
-          align-items: flex-start;
-        }
-        .dashboard-author-column {
-          flex: 1 1 300px;
-          min-width: 280px;
-          max-width: 420px;
-          border-radius: 12px;
-          border: 1px solid rgba(0,0,0,0.06);
-          background: #fafbfc;
-          overflow: hidden;
-        }
         .dashboard-author-column__head {
           display: flex;
           align-items: center;
-          gap: 12px;
-          padding: 12px 16px;
-          background: linear-gradient(180deg, #fff 0%, #f5f7fa 100%);
-          border-bottom: 1px solid rgba(0,0,0,0.06);
+          gap: var(--space-md);
+          padding: var(--space-md) var(--space-lg);
+          background: var(--color-bg-elevated);
+          border-bottom: 1px solid var(--color-border);
         }
-        .dashboard-author-column__avatar {
-          flex-shrink: 0;
-        }
-        .dashboard-author-column__avatar--default { background: #e8e8e8 !important; color: #8c8c8c !important; }
+        .dashboard-author-column__avatar { flex-shrink: 0; }
+        .dashboard-author-column__avatar--default { background: var(--color-border) !important; color: var(--color-text-tertiary) !important; }
         .dashboard-author-column__info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
         .dashboard-author-column__name {
-          font-size: 14px;
+          font-size: var(--text-body-sm-size);
           font-weight: 600;
-          color: #1a1a2e;
+          color: var(--color-text-primary);
           line-height: 1.3;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
         .dashboard-author-column__count {
-          font-size: 12px;
-          color: #8c8c8c;
+          font-size: var(--text-caption-size);
+          color: var(--color-text-tertiary);
         }
         .dashboard-author-column__list {
           display: flex;
           flex-direction: column;
-          gap: 8px;
-          padding: 12px;
-          max-height: min(900px, calc(100vh - 280px));
+          gap: var(--space-sm);
+          padding: var(--space-md);
           overflow-y: auto;
         }
         .dashboard-author-column__list::-webkit-scrollbar { width: 6px; }
-        .dashboard-author-column__list::-webkit-scrollbar-track { background: #f0f0f0; border-radius: 3px; }
-        .dashboard-author-column__list::-webkit-scrollbar-thumb { background: #bfbfbf; border-radius: 3px; }
-        .dashboard-author-column__list::-webkit-scrollbar-thumb:hover { background: #8c8c8c; }
+        .dashboard-author-column__list::-webkit-scrollbar-track { background: var(--color-border-light); border-radius: 3px; }
+        .dashboard-author-column__list::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
 
         .dashboard-article-card {
-          padding: 12px 14px;
-          border-radius: 10px;
-          border: 1px solid rgba(0,0,0,0.06);
-          background: #fff;
-          transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+          padding: var(--space-md);
+          border-radius: var(--radius-md);
+          border: 1px solid var(--color-border-light);
+          background: var(--color-bg-card);
+          transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
         }
         .dashboard-article-card:hover {
-          border-color: rgba(15, 52, 96, 0.12);
-          box-shadow: 0 2px 12px rgba(15, 52, 96, 0.06);
+          border-color: var(--color-primary-light);
+          box-shadow: var(--shadow-card-hover);
         }
         .dashboard-article-card__title {
-          margin: 0 0 8px;
-          font-size: 14px;
+          margin: 0 0 var(--space-sm);
+          font-size: var(--text-body-sm-size);
           font-weight: 600;
           line-height: 1.45;
         }
         .dashboard-article-card__title a {
-          color: #1a1a2e;
-          transition: color 0.2s;
+          color: var(--color-text-primary);
+          transition: color var(--transition-fast);
           text-decoration: none;
         }
-        .dashboard-article-card__title a:hover { color: #0f3460; }
+        .dashboard-article-card__title a:hover { color: var(--color-primary); }
         .dashboard-article-card__meta {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          gap: 8px;
-          font-size: 12px;
-          color: #8c8c8c;
+          gap: var(--space-sm);
+          font-size: var(--text-caption-size);
+          color: var(--color-text-tertiary);
         }
         .dashboard-article-card__platform {
           font-size: 11px;
           padding: 2px 6px;
-          border-radius: 4px;
-          background: #f0f2f5;
-          color: #595959;
+          border-radius: var(--radius-sm);
+          background: var(--color-bg-elevated);
+          color: var(--color-text-secondary);
         }
-        .dashboard-article-card__time {
-          font-size: 11px;
-          color: #bfbfbf;
-        }
-        .dashboard-article-card__star { color: #faad14; font-size: 12px; flex-shrink: 0; }
+        .dashboard-article-card__time { font-size: 11px; }
+        .dashboard-article-card__star { color: var(--color-accent); font-size: 12px; flex-shrink: 0; }
         .dashboard-article-card__actions {
           display: inline-flex;
           align-items: center;
@@ -594,11 +609,11 @@ function Dashboard() {
           margin-left: auto;
         }
         .dashboard-article-card__btn.ant-btn {
-          color: #8c8c8c;
+          color: var(--color-text-tertiary);
           font-size: 11px;
           padding: 0 2px;
         }
-        .dashboard-article-card__btn.ant-btn:hover { color: #0f3460; }
+        .dashboard-article-card__btn.ant-btn:hover { color: var(--color-primary); }
       `}</style>
     </MainLayout>
   );

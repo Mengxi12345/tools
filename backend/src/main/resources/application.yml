@@ -73,14 +73,26 @@ spring:
         max-concurrency: 10
   
   quartz:
-    # 开发环境改为使用内存存储，避免独立 Quartz 数据源配置问题
-    job-store-type: memory
+    # JDBC 存储：调度状态持久化到 PostgreSQL，应用重启后定时任务不丢失
+    job-store-type: jdbc
     jdbc:
       initialize-schema: never
+    properties:
+      org:
+        quartz:
+          jobStore:
+            driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
 
 # 上传文件存储目录（相对为项目工作目录下的 uploads）
+# QQ 群通知（可选）：go-cqhttp / Mirai HTTP API 地址，通知规则中未配置 qqApiUrl 时使用
+# 飞书通知（可选）：规则中未配置 feishuAppId/feishuAppSecret 时使用
 app:
   upload-dir: uploads
+  qq:
+    default-api-url: ""  # 例如 http://localhost:5700
+  feishu:
+    default-app-id: ""    # 可选，规则中未配置时使用
+    default-app-secret: "" # 可选，勿将密钥提交到版本库
 
 server:
   port: 8080

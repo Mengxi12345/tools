@@ -13,9 +13,12 @@ import {
   BarChartOutlined,
   BellOutlined,
   LogoutOutlined,
+  BulbOutlined,
+  BulbFilled,
 } from '@ant-design/icons';
 import { ReactNode } from 'react';
 import { clearToken } from '../../services/api';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const { Header, Sider, Content } = Layout;
 
@@ -26,6 +29,7 @@ interface MainLayoutProps {
 function MainLayout({ children }: MainLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const handler = () => navigate('/login', { replace: true });
@@ -92,49 +96,80 @@ function MainLayout({ children }: MainLayoutProps) {
   ];
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="dark" width={200}>
-        <div style={{ 
-          height: 64, 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          color: 'white',
-          fontSize: '18px',
-          fontWeight: 'bold'
-        }}>
+    <Layout className="main-layout" style={{ minHeight: '100vh', background: 'var(--color-bg-page)' }}>
+      <Sider className="main-layout__sider" width={200} style={{ background: 'var(--color-bg-elevated)' }}>
+        <div className="main-layout__logo">
           内容聚合工具
         </div>
         <Menu
-          theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
+          className="main-layout__menu"
+          style={{ background: 'transparent', borderRight: 0 }}
         />
       </Sider>
-      <Layout>
-        <Header style={{ 
-          background: '#fff', 
-          padding: '0 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          <h2 style={{ margin: 0 }}>内容聚合与归档工具</h2>
-          <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}>退出</Button>
+      <Layout style={{ background: 'transparent' }}>
+        <Header className="main-layout__header ds-nav-glass">
+          <h2 className="main-layout__title">内容聚合与归档工具</h2>
+          <div className="main-layout__actions">
+            <Button
+              type="text"
+              icon={theme === 'dark' ? <BulbFilled /> : <BulbOutlined />}
+              onClick={toggleTheme}
+              className="main-layout__theme-btn"
+              title={theme === 'dark' ? '切换浅色' : '切换深色'}
+            />
+            <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}>退出</Button>
+          </div>
         </Header>
-        <Content style={{ 
-          margin: '24px', 
-          padding: '24px', 
-          background: '#fff',
-          borderRadius: '8px',
-          minHeight: 'calc(100vh - 112px)'
-        }}>
+        <Content className="main-layout__content">
           {children}
         </Content>
       </Layout>
+      <style>{`
+        .main-layout__sider .ant-layout-sider-children { background: var(--color-bg-elevated); }
+        .main-layout__menu.ant-menu { background: transparent !important; color: var(--color-text-primary); }
+        .main-layout__menu.ant-menu .ant-menu-item { color: var(--color-text-secondary); }
+        .main-layout__menu.ant-menu .ant-menu-item:hover { color: var(--color-primary); }
+        .main-layout__menu.ant-menu .ant-menu-item-selected { background: var(--color-primary) !important; color: #fff !important; }
+        .main-layout__menu.ant-menu .ant-menu-item .anticon { color: inherit; }
+        .main-layout__logo {
+          height: 64px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--color-text-primary);
+          font-size: var(--text-h3-size);
+          font-weight: var(--text-h2-weight);
+        }
+        .main-layout__header {
+          padding: 0 24px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          height: 56px;
+          line-height: 56px;
+        }
+        .main-layout__title {
+          margin: 0;
+          font-size: var(--text-h2-size);
+          font-weight: var(--text-h2-weight);
+          color: var(--color-text-primary);
+        }
+        .main-layout__actions { display: flex; align-items: center; gap: 8px; }
+        .main-layout__theme-btn { color: var(--color-text-secondary); }
+        .main-layout__theme-btn:hover { color: var(--color-primary); }
+        .main-layout__content {
+          margin: var(--space-lg);
+          padding: var(--space-lg);
+          background: var(--color-bg-card);
+          border-radius: var(--radius-lg);
+          min-height: calc(100vh - 56px - var(--space-lg) * 2);
+          box-shadow: var(--shadow-card);
+        }
+      `}</style>
     </Layout>
   );
 }

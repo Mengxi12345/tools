@@ -248,6 +248,23 @@ export const notificationRuleApi = {
   update: (id: string, data: { name?: string; ruleType?: string; config?: Record<string, unknown>; isEnabled?: boolean }) =>
     apiClient.put<ApiResponse<any>>(`/notification-rules/${id}`, data),
   delete: (id: string) => apiClient.delete<ApiResponse<void>>(`/notification-rules/${id}`),
+  /** 测试下发消息到规则配置的机器人（QQ 群 / 飞书），仅支持 QQ_GROUP、FEISHU 类型 */
+  test: (id: string) => apiClient.post<ApiResponse<{ success: boolean; message: string }>>(`/notification-rules/${id}/test`),
+  /** 按规则类型 + 配置直接测试下发（不依赖已保存规则） */
+  testWithConfig: (body: { ruleType: string; config: Record<string, unknown> }) =>
+    apiClient.post<ApiResponse<{ success: boolean; message: string }>>('/notifications/test-with-config', body),
+};
+
+/** 通知通道配置（存储并可选共享，供规则表单复用） */
+export const notificationChannelConfigApi = {
+  list: (params?: { channelType?: string }) =>
+    apiClient.get<ApiResponse<any[]>>('/notification-channel-configs', { params }),
+  getById: (id: string) => apiClient.get<ApiResponse<any>>(`/notification-channel-configs/${id}`),
+  create: (data: { name: string; channelType: string; config: Record<string, unknown>; isShared?: boolean }) =>
+    apiClient.post<ApiResponse<any>>('/notification-channel-configs', data),
+  update: (id: string, data: { name?: string; channelType?: string; config?: Record<string, unknown>; isShared?: boolean }) =>
+    apiClient.put<ApiResponse<any>>(`/notification-channel-configs/${id}`, data),
+  delete: (id: string) => apiClient.delete<ApiResponse<void>>(`/notification-channel-configs/${id}`),
 };
 
 // 导出API（返回下载链接）

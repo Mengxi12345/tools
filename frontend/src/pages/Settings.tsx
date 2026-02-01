@@ -403,14 +403,14 @@ function Settings() {
 
   return (
     <MainLayout>
-      <Space direction="vertical" style={{ width: '100%' }} size="large">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0 }}>定时任务</h2>
           <Button icon={<ReloadOutlined />} onClick={handleRefreshAll}>
             刷新
           </Button>
         </div>
-        <Card title="全局定时任务">
+        <Card title="全局定时任务" style={{ marginBottom: 16 }}>
           {scheduleInterval ? (
             <p style={{ marginBottom: 12, color: '#666' }}>
               执行周期：<strong>{scheduleInterval}</strong>
@@ -429,7 +429,7 @@ function Settings() {
           </Space>
         </Card>
 
-        <Card title="用户定时任务管理">
+        <Card title="用户定时任务管理" style={{ marginBottom: 16 }}>
           <Table
             dataSource={users}
             rowKey="id"
@@ -480,60 +480,8 @@ function Settings() {
         </Card>
 
         <Card
-          title="刷新任务记录"
-          extra={
-            <Space>
-              <Button icon={<ReloadOutlined />} type="link" onClick={loadFetchHistory}>
-                刷新
-              </Button>
-              <Button
-                type="link"
-                danger
-                disabled={fetchHistorySelectedRowKeys.length === 0}
-                icon={<DeleteOutlined />}
-                onClick={handleBatchDeleteFetchRecords}
-              >
-                批量清除{fetchHistorySelectedRowKeys.length > 0 ? ` (${fetchHistorySelectedRowKeys.length})` : ''}
-              </Button>
-              <Popconfirm
-                title="确定一键全清所有手动刷新记录？此操作不可恢复。"
-                onConfirm={handleClearAllFetchRecords}
-                okText="全清"
-                cancelText="取消"
-                okButtonProps={{ danger: true }}
-              >
-                <Button type="link" danger icon={<DeleteOutlined />}>
-                  一键全清
-                </Button>
-              </Popconfirm>
-            </Space>
-          }
-        >
-          <p style={{ color: '#666', marginBottom: 12 }}>
-            仅展示「用户管理」中点击「刷新内容」产生的手动任务，按创建时间倒序。
-          </p>
-          <Table
-            dataSource={fetchHistory}
-            rowKey="id"
-            loading={fetchHistoryLoading}
-            rowSelection={{
-              selectedRowKeys: fetchHistorySelectedRowKeys,
-              onChange: (keys) => setFetchHistorySelectedRowKeys(keys as string[]),
-            }}
-            columns={fetchHistoryColumns}
-            pagination={{
-              current: Math.max(1, Number(fetchHistoryPage) || 1),
-              pageSize: Math.max(1, Number(fetchHistoryPageSize) || 10),
-              total: fetchHistoryTotal,
-              showSizeChanger: true,
-              showTotal: (total) => `共 ${total} 条`,
-              onChange: (page, size) => loadFetchHistory(page, size),
-            }}
-          />
-        </Card>
-
-        <Card
           title="定时任务执行历史"
+          style={{ marginBottom: 16 }}
           extra={
             <Space>
               <Button icon={<ReloadOutlined />} type="link" onClick={loadHistory}>
@@ -582,7 +530,58 @@ function Settings() {
             }}
           />
         </Card>
-      </Space>
+
+        <Card
+          title="刷新任务记录"
+          extra={
+            <Space>
+              <Button icon={<ReloadOutlined />} type="link" onClick={loadFetchHistory}>
+                刷新
+              </Button>
+              <Button
+                type="link"
+                danger
+                disabled={fetchHistorySelectedRowKeys.length === 0}
+                icon={<DeleteOutlined />}
+                onClick={handleBatchDeleteFetchRecords}
+              >
+                批量清除{fetchHistorySelectedRowKeys.length > 0 ? ` (${fetchHistorySelectedRowKeys.length})` : ''}
+              </Button>
+              <Popconfirm
+                title="确定一键全清所有手动刷新记录？此操作不可恢复。"
+                onConfirm={handleClearAllFetchRecords}
+                okText="全清"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+              >
+                <Button type="link" danger icon={<DeleteOutlined />}>
+                  一键全清
+                </Button>
+              </Popconfirm>
+            </Space>
+          }
+        >
+          <p style={{ color: '#666', marginBottom: 12 }}>仅展示「用户管理」中点击「刷新内容」产生的手动任务，按创建时间倒序。</p>
+          <Table
+            dataSource={fetchHistory}
+            rowKey="id"
+            loading={fetchHistoryLoading}
+            rowSelection={{
+              selectedRowKeys: fetchHistorySelectedRowKeys,
+              onChange: (keys) => setFetchHistorySelectedRowKeys(keys as string[]),
+            }}
+            columns={fetchHistoryColumns}
+            pagination={{
+              current: Math.max(1, Number(fetchHistoryPage) || 1),
+              pageSize: Math.max(1, Number(fetchHistoryPageSize) || 10),
+              total: fetchHistoryTotal,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 条`,
+              onChange: (page, size) => loadFetchHistory(page, size),
+            }}
+          />
+        </Card>
+      </div>
     </MainLayout>
   );
 }
