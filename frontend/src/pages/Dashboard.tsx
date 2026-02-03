@@ -11,6 +11,8 @@ import {
   CalendarOutlined,
   StarFilled,
   EyeOutlined,
+  DownOutlined,
+  UpOutlined,
 } from '@ant-design/icons';
 import { contentApi, userApi, platformApi, taskApi, getApiErrorMessage } from '../services/api';
 import { getContentOriginalUrl, parseContentMetadata } from '../utils/contentUtils';
@@ -82,7 +84,7 @@ interface ContentItem {
   isRead: boolean;
   isFavorite: boolean;
   platform?: { id: string; name: string };
-  user?: { id: string; username: string };
+  user?: { id: string; username: string; displayName?: string };
   metadata?: unknown;
 }
 
@@ -96,6 +98,8 @@ function Dashboard() {
   });
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [lastThreeDaysContents, setLastThreeDaysContents] = useState<ContentItem[]>([]);
+  const [latestContents, setLatestContents] = useState<ContentItem[]>([]);
+  const [floatingCollapsed, setFloatingCollapsed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   /** 最近三天的 startTime/endTime，格式 YYYY-MM-DDTHH:mm:ss 供后端 LocalDateTime 解析 */
@@ -150,6 +154,14 @@ function Dashboard() {
         setLastThreeDaysContents(Array.isArray(contentsRes.data.content) ? contentsRes.data.content : []);
       } else {
         setLastThreeDaysContents([]);
+      }
+
+      // 最近 8 条内容（浮动框用，按发布时间倒序）
+      const latestRes: any = await contentApi.getAll({ page: 0, size: 8 }).catch(() => ({ code: 0, data: {} }));
+      if (latestRes?.code === 200 && latestRes.data?.content) {
+        setLatestContents(Array.isArray(latestRes.data.content) ? latestRes.data.content : []);
+      } else {
+        setLatestContents([]);
       }
     } catch (error) {
       console.error('加载仪表盘数据失败', error);
@@ -309,6 +321,60 @@ function Dashboard() {
             </div>
           </div>
         </header>
+
+        {/* 上方固定框：最近动态，消息浮动展示 */}
+        <div className={`dashboard-latest-box ${floatingCollapsed ? 'dashboard-latest-box--collapsed' : ''}`}>
+          <div className="dashboard-latest-box__header">
+            <span className="dashboard-latest-box__title">最近动态</span>
+            <Button
+              type="text"
+              size="small"
+              icon={floatingCollapsed ? <UpOutlined /> : <DownOutlined />}
+              onClick={() => setFloatingCollapsed(!floatingCollapsed)}
+              className="dashboard-latest-box__toggle"
+            />
+          </div>
+          {!floatingCollapsed && (
+            <div className="dashboard-latest-box__scroll">
+              {latestContents.length === 0 ? (
+                <div className="dashboard-latest-box__empty">暂无内容</div>
+              ) : (
+                latestContents.map((item) => {
+                  const originalUrl = getContentOriginalUrl(item);
+                  const { nickName } = parseContentMetadata(item.metadata);
+                  const authorName = nickName ?? item.user?.displayName ?? item.user?.username ?? '—';
+                  return (
+                    <div key={item.id} className="dashboard-latest-box__item">
+                      <a
+                        href={originalUrl || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="dashboard-latest-box__link"
+                        onClick={(e) => !originalUrl && e.preventDefault()}
+                      >
+                        {item.title || '无标题'}
+                      </a>
+                      <div className="dashboard-latest-box__meta">
+                        <span className="dashboard-latest-box__author">{authorName}</span>
+                        <span className="dashboard-latest-box__platform">{item.platform?.name ?? '—'}</span>
+                        <span className="dashboard-latest-box__time">{formatFriendlyTime(item.publishedAt)}</span>
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<EyeOutlined />}
+                          onClick={() => navigate(`/contents/${item.id}`)}
+                          className="dashboard-latest-box__btn"
+                        >
+                          详情
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Bento：最近三天 · 按作者分栏 */}
         <section className="dashboard-section">
@@ -614,6 +680,100 @@ function Dashboard() {
           padding: 0 2px;
         }
         .dashboard-article-card__btn.ant-btn:hover { color: var(--color-primary); }
+
+        /* 上方固定框：最近动态，消息浮动展示 */
+        .dashboard-latest-box {
+          margin-bottom: var(--space-lg);
+          border-radius: var(--radius-lg);
+          border: 1px solid var(--color-border);
+          background: var(--color-bg-elevated);
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        .dashboard-latest-box--collapsed {
+          max-height: 48px;
+        }
+        .dashboard-latest-box__header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: var(--space-sm) var(--space-md);
+          border-bottom: 1px solid var(--color-border-light);
+          background: var(--color-bg-card);
+          flex-shrink: 0;
+        }
+        .dashboard-latest-box__title {
+          font-size: var(--text-body-sm-size);
+          font-weight: 600;
+          color: var(--color-text-primary);
+        }
+        .dashboard-latest-box__toggle.ant-btn { color: var(--color-text-tertiary); padding: 0 4px; }
+        .dashboard-latest-box__toggle.ant-btn:hover { color: var(--color-primary); }
+        .dashboard-latest-box__scroll {
+          height: 180px;
+          overflow-y: auto;
+          padding: var(--space-sm);
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-xs);
+        }
+        .dashboard-latest-box__scroll::-webkit-scrollbar { width: 6px; }
+        .dashboard-latest-box__scroll::-webkit-scrollbar-track { background: var(--color-border-light); border-radius: 3px; }
+        .dashboard-latest-box__scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+        .dashboard-latest-box__empty {
+          padding: var(--space-md);
+          text-align: center;
+          font-size: var(--text-caption-size);
+          color: var(--color-text-tertiary);
+        }
+        .dashboard-latest-box__item {
+          padding: var(--space-sm) var(--space-md);
+          border-radius: var(--radius-md);
+          border: 1px solid var(--color-border-light);
+          background: var(--color-bg-card);
+          transition: border-color var(--transition-fast);
+          flex-shrink: 0;
+        }
+        .dashboard-latest-box__item:hover { border-color: var(--color-primary-light); }
+        .dashboard-latest-box__link {
+          display: block;
+          font-size: var(--text-body-sm-size);
+          font-weight: 500;
+          color: var(--color-text-primary);
+          line-height: 1.4;
+          margin-bottom: 4px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          text-decoration: none;
+        }
+        .dashboard-latest-box__link:hover { color: var(--color-primary); }
+        .dashboard-latest-box__meta {
+          display: flex;
+          align-items: center;
+          gap: var(--space-sm);
+          font-size: 11px;
+          color: var(--color-text-tertiary);
+        }
+        .dashboard-latest-box__author {
+          color: var(--color-text-secondary);
+          font-weight: 500;
+        }
+        .dashboard-latest-box__platform {
+          padding: 2px 6px;
+          border-radius: var(--radius-sm);
+          background: var(--color-bg-elevated);
+          color: var(--color-text-secondary);
+        }
+        .dashboard-latest-box__time { flex-shrink: 0; }
+        .dashboard-latest-box__btn.ant-btn {
+          margin-left: auto;
+          color: var(--color-text-tertiary);
+          font-size: 11px;
+          padding: 0 2px;
+        }
+        .dashboard-latest-box__btn.ant-btn:hover { color: var(--color-primary); }
       `}</style>
     </MainLayout>
   );

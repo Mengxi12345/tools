@@ -56,7 +56,19 @@ public interface ContentRepository extends JpaRepository<Content, UUID> {
         @Param("endTime") LocalDateTime endTime
     );
 
-    /** 按平台、用户、发布时间范围分页（用于内容管理「某月文章」） */
+    /** 按用户、发布时间范围分页（platformId 为空时使用，避免 PostgreSQL 无法推断 null 参数类型） */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user " +
+        "WHERE c.user.id = :userId AND c.publishedAt >= :startTime AND c.publishedAt <= :endTime",
+        countQuery = "SELECT COUNT(c) FROM Content c WHERE c.user.id = :userId " +
+            "AND c.publishedAt >= :startTime AND c.publishedAt <= :endTime")
+    Page<Content> findByUserIdAndPublishedAtBetweenWithPlatformAndUser(
+        @Param("userId") UUID userId,
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime,
+        Pageable pageable
+    );
+
+    /** 按平台、用户、发布时间范围分页（用于内容管理「某月/某年文章」） */
     @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user " +
         "WHERE (:platformId IS NULL OR c.platform.id = :platformId) AND c.user.id = :userId " +
         "AND c.publishedAt >= :startTime AND c.publishedAt <= :endTime",

@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -82,13 +83,16 @@ public class NotificationController {
         return ApiResponse.success(notificationManagementService.getNotificationById(id));
     }
 
-    @Operation(summary = "按配置测试下发", description = "不依赖已保存规则，按传入的规则类型与配置发送一条测试消息到 QQ 群/飞书")
+    @Operation(summary = "按配置测试下发", description = "不依赖已保存规则发送测试消息。testMode: default=默认语句，random_content=随机文章（需传 userIds）")
     @PostMapping("/test-with-config")
     public ApiResponse<Map<String, Object>> testWithConfig(@RequestBody Map<String, Object> body) {
         String ruleType = body != null && body.get("ruleType") != null ? body.get("ruleType").toString().trim() : null;
         @SuppressWarnings("unchecked")
         Map<String, Object> config = body != null && body.get("config") instanceof Map ? (Map<String, Object>) body.get("config") : null;
-        String error = notificationService.sendTestMessageWithConfig(ruleType, config);
+        String testMode = body != null && body.get("testMode") != null ? body.get("testMode").toString() : NotificationService.TEST_MODE_DEFAULT;
+        @SuppressWarnings("unchecked")
+        List<String> userIds = body != null && body.get("userIds") instanceof List ? (List<String>) body.get("userIds") : null;
+        String error = notificationService.sendTestMessageWithConfig(ruleType, config, testMode, userIds);
         if (error == null) {
             return ApiResponse.success(Map.of("success", true, "message", "测试消息已发送"));
         }

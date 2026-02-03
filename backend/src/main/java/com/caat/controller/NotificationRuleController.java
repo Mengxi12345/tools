@@ -4,6 +4,8 @@ import com.caat.dto.ApiResponse;
 import com.caat.entity.NotificationRule;
 import com.caat.service.NotificationRuleService;
 import com.caat.service.NotificationService;
+
+import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -62,16 +64,17 @@ public class NotificationRuleController {
         return ApiResponse.success(null);
     }
 
-    @Operation(summary = "测试下发消息", description = "向规则配置的机器人（QQ 群 / 飞书）发送一条测试消息，仅支持 QQ_GROUP、FEISHU 类型")
+    @Operation(summary = "测试下发消息", description = "向规则配置的机器人发送测试消息。testMode: default=默认语句，random_content=随机选监听用户的一篇文章按当前格式下发")
     @PostMapping("/{id}/test")
-    public ApiResponse<Map<String, Object>> test(@PathVariable UUID id) {
+    public ApiResponse<Map<String, Object>> test(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> body) {
         NotificationRule rule;
         try {
             rule = notificationRuleService.getById(id);
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(404, "规则不存在");
         }
-        String error = notificationService.sendTestMessage(rule);
+        String testMode = body != null && body.get("testMode") != null ? body.get("testMode").toString() : NotificationService.TEST_MODE_DEFAULT;
+        String error = notificationService.sendTestMessage(rule, testMode);
         if (error == null) {
             return ApiResponse.success(Map.of("success", true, "message", "测试消息已发送"));
         }

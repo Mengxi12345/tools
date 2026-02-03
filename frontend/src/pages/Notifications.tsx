@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, Switch, message, Popconfirm, Card } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, Switch, message, Popconfirm, Card, Dropdown } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
 import { notificationRuleApi, notificationChannelConfigApi, userApi, getApiErrorMessage } from '../services/api';
 import MainLayout from '../components/Layout/MainLayout';
@@ -140,6 +140,7 @@ function Notifications() {
       qqSessionKey: c.qqSessionKey ?? '',
       qqApiUrl: c.qqApiUrl ?? '',
       messageTemplate: c.messageTemplate ?? '',
+      authorDisplayName: c.authorDisplayName ?? '',
       feishuAppId: c.feishuAppId ?? '',
       feishuAppSecret: c.feishuAppSecret ?? '',
       feishuReceiveId: c.feishuReceiveId ?? '',
@@ -166,6 +167,7 @@ function Notifications() {
           qqSessionKey: values.qqSessionKey?.trim() || '',
           qqApiUrl: values.qqApiUrl?.trim() || '',
           messageTemplate: values.messageTemplate?.trim() || '',
+          authorDisplayName: values.authorDisplayName?.trim() || '',
         };
       }
       if (ruleType === 'FEISHU') {
@@ -176,6 +178,7 @@ function Notifications() {
           feishuReceiveId: values.feishuReceiveId?.trim() || '',
           feishuReceiveIdType: values.feishuReceiveIdType ?? 'chat_id',
           messageTemplate: values.feishuMessageTemplate?.trim() || '',
+          authorDisplayName: values.authorDisplayName?.trim() || '',
         };
       }
       if (editingRule) {
@@ -211,6 +214,7 @@ function Notifications() {
         message.warning('请选择规则类型（QQ 群 或 飞书）');
         return;
       }
+      const testMode = testForm.getFieldValue('testMode') || 'default';
       const values = await testForm.validateFields();
       const config: Record<string, unknown> = {};
       if (ruleType === 'QQ_GROUP') {
@@ -224,8 +228,13 @@ function Notifications() {
         config.feishuReceiveId = values.testFeishuReceiveId?.trim() || '';
         config.feishuReceiveIdType = values.testFeishuReceiveIdType ?? 'chat_id';
       }
+      const body: { ruleType: string; config: Record<string, unknown>; testMode?: string; userIds?: string[] } = { ruleType, config };
+      if (testMode) body.testMode = testMode;
+      if (testMode === 'random_content' && Array.isArray(values.testUserIds) && values.testUserIds.length > 0) {
+        body.userIds = values.testUserIds;
+      }
       setTestWithConfigLoading(true);
-      const res: any = await notificationRuleApi.testWithConfig({ ruleType, config });
+      const res: any = await notificationRuleApi.testWithConfig(body);
       const data = res?.data;
       if (data?.success) {
         message.success(data.message || '测试消息已发送');
@@ -241,10 +250,10 @@ function Notifications() {
     }
   };
 
-  const handleTest = async (id: string) => {
+  const handleTest = async (id: string, testMode: string = 'default') => {
     setTestingRuleId(id);
     try {
-      const res: any = await notificationRuleApi.test(id);
+      const res: any = await notificationRuleApi.test(id, { testMode });
       const data = res?.data;
       if (data?.success) {
         message.success(data.message || '测试消息已发送');
@@ -272,6 +281,7 @@ function Notifications() {
         qqSessionKey: c.qqSessionKey ?? '',
         qqApiUrl: c.qqApiUrl ?? '',
         messageTemplate: c.messageTemplate ?? '',
+        authorDisplayName: c.authorDisplayName ?? '',
       });
     }
     if (currentRuleType === 'FEISHU') {
@@ -281,6 +291,7 @@ function Notifications() {
         feishuReceiveId: c.feishuReceiveId ?? '',
         feishuReceiveIdType: c.feishuReceiveIdType ?? 'chat_id',
         feishuMessageTemplate: c.messageTemplate ?? '',
+        authorDisplayName: c.authorDisplayName ?? '',
       });
     }
   };
@@ -304,6 +315,7 @@ function Notifications() {
           qqSessionKey: values.qqSessionKey?.trim() ?? '',
           qqApiUrl: values.qqApiUrl?.trim() ?? '',
           messageTemplate: values.messageTemplate?.trim() ?? '',
+          authorDisplayName: values.authorDisplayName?.trim() ?? '',
         };
       } else if (currentRuleType === 'FEISHU') {
         config = {
@@ -312,6 +324,7 @@ function Notifications() {
           feishuReceiveId: values.feishuReceiveId?.trim() ?? '',
           feishuReceiveIdType: values.feishuReceiveIdType ?? 'chat_id',
           messageTemplate: values.feishuMessageTemplate?.trim() ?? '',
+          authorDisplayName: values.authorDisplayName?.trim() ?? '',
         };
       }
       setSaveConfigLoading(true);
@@ -390,15 +403,23 @@ function Notifications() {
       render: (_: any, record: Rule) => (
         <Space>
           {(record.ruleType === 'QQ_GROUP' || record.ruleType === 'FEISHU') && (
-            <Button
-              type="default"
-              size="small"
-              icon={<SendOutlined />}
-              loading={testingRuleId === record.id}
-              onClick={() => handleTest(record.id)}
+            <Dropdown
+              menu={{
+                items: [
+                  { key: 'default', label: '默认语句', onClick: () => handleTest(record.id, 'default') },
+                  { key: 'random_content', label: '随机文章（按当前格式）', onClick: () => handleTest(record.id, 'random_content') },
+                ],
+              }}
             >
-              测试下发
-            </Button>
+              <Button
+                type="default"
+                size="small"
+                icon={<SendOutlined />}
+                loading={testingRuleId === record.id}
+              >
+                测试下发
+              </Button>
+            </Dropdown>
           )}
           <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
           <Popconfirm title="确定删除？" onConfirm={() => handleDelete(record.id)}>
@@ -432,52 +453,70 @@ function Notifications() {
             <Form.Item name="testRuleType" label="规则类型" rules={[{ required: true, message: '请选择' }]} style={{ marginRight: 16, marginBottom: 8 }}>
               <Select placeholder="选择类型" options={TEST_RULE_TYPES} style={{ width: 140 }} />
             </Form.Item>
-            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.testRuleType !== curr.testRuleType}>
+            <Form.Item name="testMode" label="测试模式" initialValue="default" style={{ marginRight: 16, marginBottom: 8 }}>
+              <Select options={[
+                { value: 'default', label: '默认语句' },
+                { value: 'random_content', label: '随机文章（按当前格式）' },
+              ]} style={{ width: 160 }} />
+            </Form.Item>
+            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.testRuleType !== curr.testRuleType || prev.testMode !== curr.testMode}>
               {({ getFieldValue }) => {
                 const type = getFieldValue('testRuleType');
-                if (type === 'QQ_GROUP') {
-                  return (
-                    <>
-                      <Form.Item name="testQqGroupId" label="QQ 群号" rules={[{ required: true, message: '必填' }]} style={{ marginRight: 16, marginBottom: 8 }}>
-                        <Input placeholder="群号" style={{ width: 120 }} />
+                const testMode = getFieldValue('testMode');
+                const needUserIds = testMode === 'random_content';
+                return (
+                  <>
+                    {needUserIds && (
+                      <Form.Item name="testUserIds" label="监听用户" rules={[{ required: true, message: '随机文章模式需选择用户' }]} style={{ marginRight: 16, marginBottom: 8 }}>
+                        <Select
+                          mode="multiple"
+                          placeholder="选择用户（随机选其一的一篇文章）"
+                          optionFilterProp="label"
+                          options={users.map((u) => ({ value: u.id, label: formatUserOptionLabel(u) }))}
+                          style={{ width: 240 }}
+                        />
                       </Form.Item>
-                      <Form.Item name="testQqApiUrl" label="API 地址" rules={[{ required: true, message: '必填' }]} style={{ marginRight: 16, marginBottom: 8 }}>
-                        <Input placeholder="http://localhost:5700" style={{ width: 180 }} />
-                      </Form.Item>
-                      <Form.Item name="testQqBotType" initialValue="go-cqhttp" style={{ marginRight: 16, marginBottom: 8 }}>
-                        <Select options={[{ value: 'go-cqhttp', label: 'go-cqhttp' }, { value: 'mirai', label: 'Mirai' }]} style={{ width: 100 }} />
-                      </Form.Item>
-                      <Form.Item noStyle shouldUpdate={(p, c) => p.testQqBotType !== c.testQqBotType}>
-                        {({ getFieldValue: gf }) =>
-                          gf('testQqBotType') === 'mirai' ? (
-                            <Form.Item name="testQqSessionKey" label="Session Key" rules={[{ required: true }]} style={{ marginRight: 16, marginBottom: 8 }}>
-                              <Input.Password placeholder="Mirai sessionKey" style={{ width: 140 }} />
-                            </Form.Item>
-                          ) : null
-                        }
-                      </Form.Item>
-                    </>
-                  );
-                }
-                if (type === 'FEISHU') {
-                  return (
-                    <>
-                      <Form.Item name="testFeishuAppId" label="App ID" rules={[{ required: true, message: '必填' }]} style={{ marginRight: 16, marginBottom: 8 }}>
-                        <Input placeholder="飞书 App ID" style={{ width: 160 }} />
-                      </Form.Item>
-                      <Form.Item name="testFeishuAppSecret" label="App Secret" rules={[{ required: true, message: '必填' }]} style={{ marginRight: 16, marginBottom: 8 }}>
-                        <Input.Password placeholder="飞书 App Secret" style={{ width: 160 }} />
-                      </Form.Item>
-                      <Form.Item name="testFeishuReceiveId" label="接收 ID" rules={[{ required: true, message: '必填' }]} style={{ marginRight: 16, marginBottom: 8 }}>
-                        <Input placeholder="chat_id / open_id" style={{ width: 160 }} />
-                      </Form.Item>
-                      <Form.Item name="testFeishuReceiveIdType" initialValue="chat_id" style={{ marginRight: 16, marginBottom: 8 }}>
-                        <Select options={[{ value: 'chat_id', label: 'chat_id' }, { value: 'open_id', label: 'open_id' }, { value: 'user_id', label: 'user_id' }]} style={{ width: 100 }} />
-                      </Form.Item>
-                    </>
-                  );
-                }
-                return null;
+                    )}
+                    {type === 'QQ_GROUP' && (
+                      <>
+                        <Form.Item name="testQqGroupId" label="QQ 群号" rules={[{ required: true, message: '必填' }]} style={{ marginRight: 16, marginBottom: 8 }}>
+                          <Input placeholder="群号" style={{ width: 120 }} />
+                        </Form.Item>
+                        <Form.Item name="testQqApiUrl" label="API 地址" rules={[{ required: true, message: '必填' }]} style={{ marginRight: 16, marginBottom: 8 }}>
+                          <Input placeholder="http://localhost:5700" style={{ width: 180 }} />
+                        </Form.Item>
+                        <Form.Item name="testQqBotType" initialValue="go-cqhttp" style={{ marginRight: 16, marginBottom: 8 }}>
+                          <Select options={[{ value: 'go-cqhttp', label: 'go-cqhttp' }, { value: 'mirai', label: 'Mirai' }]} style={{ width: 100 }} />
+                        </Form.Item>
+                        <Form.Item noStyle shouldUpdate={(p, c) => p.testQqBotType !== c.testQqBotType}>
+                          {({ getFieldValue: gf }) =>
+                            gf('testQqBotType') === 'mirai' ? (
+                              <Form.Item name="testQqSessionKey" label="Session Key" rules={[{ required: true }]} style={{ marginRight: 16, marginBottom: 8 }}>
+                                <Input.Password placeholder="Mirai sessionKey" style={{ width: 140 }} />
+                              </Form.Item>
+                            ) : null
+                          }
+                        </Form.Item>
+                      </>
+                    )}
+                    {type === 'FEISHU' && (
+                      <>
+                        <Form.Item name="testFeishuAppId" label="App ID" rules={[{ required: true, message: '必填' }]} style={{ marginRight: 16, marginBottom: 8 }}>
+                          <Input placeholder="飞书 App ID" style={{ width: 160 }} />
+                        </Form.Item>
+                        <Form.Item name="testFeishuAppSecret" label="App Secret" rules={[{ required: true, message: '必填' }]} style={{ marginRight: 16, marginBottom: 8 }}>
+                          <Input.Password placeholder="飞书 App Secret" style={{ width: 160 }} />
+                        </Form.Item>
+                        <Form.Item name="testFeishuReceiveId" label="接收 ID" rules={[{ required: true, message: '必填' }]} style={{ marginRight: 16, marginBottom: 8 }}>
+                          <Input placeholder="chat_id / open_id" style={{ width: 160 }} />
+                        </Form.Item>
+                        <Form.Item name="testFeishuReceiveIdType" initialValue="chat_id" style={{ marginRight: 16, marginBottom: 8 }}>
+                          <Select options={[{ value: 'chat_id', label: 'chat_id' }, { value: 'open_id', label: 'open_id' }, { value: 'user_id', label: 'user_id' }]} style={{ width: 100 }} />
+                        </Form.Item>
+                      </>
+                    )}
+                  </>
+                );
               }}
             </Form.Item>
             <Form.Item style={{ marginBottom: 8 }}>
@@ -511,14 +550,19 @@ function Notifications() {
             (editingRule?.ruleType === 'QQ_GROUP' || editingRule?.ruleType === 'FEISHU') ? (
               [
                 <Button key="cancel" onClick={() => setModalVisible(false)}>取消</Button>,
-                <Button
+                <Dropdown
                   key="test"
-                  icon={<SendOutlined />}
-                  loading={editingRule ? testingRuleId === editingRule.id : false}
-                  onClick={() => editingRule && handleTest(editingRule.id)}
+                  menu={{
+                    items: [
+                      { key: 'default', label: '默认语句', onClick: () => editingRule && handleTest(editingRule.id, 'default') },
+                      { key: 'random_content', label: '随机文章（按当前格式）', onClick: () => editingRule && handleTest(editingRule.id, 'random_content') },
+                    ],
+                  }}
                 >
-                  测试下发
-                </Button>,
+                  <Button icon={<SendOutlined />} loading={editingRule ? testingRuleId === editingRule.id : false}>
+                    测试下发
+                  </Button>
+                </Dropdown>,
                 <Button key="submit" type="primary" onClick={handleSubmit}>确定</Button>,
               ]
             ) : undefined
@@ -566,6 +610,9 @@ function Notifications() {
                             options={users.map((u) => ({ value: u.id, label: formatUserOptionLabel(u) }))}
                           />
                         </Form.Item>
+                        <Form.Item name="authorDisplayName" label="作者显示名（可选）">
+                          <Input placeholder="下发时 {author} 使用此名称，留空则用用户配置的显示名/账号" />
+                        </Form.Item>
                         <Form.Item name="qqGroupId" label="QQ 群号" rules={[{ required: true, message: '请输入 QQ 群号' }]}>
                           <Input placeholder="例如 123456789" />
                         </Form.Item>
@@ -586,6 +633,9 @@ function Notifications() {
                         </Form.Item>
                         <Form.Item name="messageTemplate" label="消息模板（可选）">
                           <Input.TextArea rows={3} placeholder="支持占位符：{title} {author} {platform} {url}，留空使用默认模板" />
+                        </Form.Item>
+                        <Form.Item name="authorDisplayName" label="作者显示名（可选）">
+                          <Input placeholder="留空则使用用户配置的显示名/账号；填写后 {author} 将显示此名称" />
                         </Form.Item>
                         <Form.Item>
                           <Button type="default" onClick={handleOpenSaveConfig}>保存为通道配置（可共享）</Button>
@@ -618,6 +668,9 @@ function Notifications() {
                             options={users.map((u) => ({ value: u.id, label: formatUserOptionLabel(u) }))}
                           />
                         </Form.Item>
+                        <Form.Item name="authorDisplayName" label="作者显示名（可选）">
+                          <Input placeholder="下发时 {author} 使用此名称，留空则用用户配置的显示名/账号" />
+                        </Form.Item>
                         <Form.Item name="feishuAppId" label="飞书 App ID" rules={[{ required: true, message: '请输入飞书应用 App ID' }]}>
                           <Input placeholder="开放平台应用凭证中的 App ID" />
                         </Form.Item>
@@ -631,7 +684,7 @@ function Notifications() {
                           <Select options={[{ value: 'chat_id', label: 'chat_id（群聊/单聊）' }, { value: 'open_id', label: 'open_id（用户）' }, { value: 'user_id', label: 'user_id（用户）' }]} />
                         </Form.Item>
                         <Form.Item name="feishuMessageTemplate" label="消息模板（可选）">
-                          <Input.TextArea rows={3} placeholder="支持占位符：{title} {author} {platform} {url}，留空使用默认模板" />
+                          <Input.TextArea rows={3} placeholder="留空则三行：【作者+平台】、body、链接。自定义支持：{author} {platform} {body} {url} {title}" />
                         </Form.Item>
                         <Form.Item>
                           <Button type="default" onClick={handleOpenSaveConfig}>保存为通道配置（可共享）</Button>

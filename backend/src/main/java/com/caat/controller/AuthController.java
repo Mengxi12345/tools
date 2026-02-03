@@ -3,6 +3,7 @@ package com.caat.controller;
 import com.caat.dto.ApiResponse;
 import com.caat.dto.LoginRequest;
 import com.caat.dto.LoginResponse;
+import com.caat.dto.RegisterRequest;
 import com.caat.entity.User;
 import com.caat.service.UserService;
 import com.caat.util.JwtUtil;
@@ -46,14 +47,16 @@ public class AuthController {
         ));
     }
     
-    @Operation(summary = "用户注册", description = "注册新用户")
+    @Operation(summary = "用户注册", description = "注册新用户，注册成功后返回 Token 自动登录")
     @PostMapping("/register")
-    public ApiResponse<LoginResponse> register(@Valid @RequestBody LoginRequest request) {
-        // 简单注册逻辑，实际应该使用单独的注册DTO
+    public ApiResponse<LoginResponse> register(@Valid @RequestBody RegisterRequest request) {
+        String email = (request.getEmail() != null && !request.getEmail().trim().isEmpty())
+                ? request.getEmail().trim()
+                : request.getUsername() + "@example.com";
         User user = userService.createUser(
                 request.getUsername(),
                 request.getPassword(),
-                request.getUsername() + "@example.com" // 临时邮箱
+                email
         );
         
         String token = jwtUtil.generateToken(user.getId(), user.getUsername());

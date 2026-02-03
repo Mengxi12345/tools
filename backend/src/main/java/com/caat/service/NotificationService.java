@@ -3,7 +3,10 @@ package com.caat.service;
 import com.caat.entity.Content;
 import com.caat.entity.Notification;
 import com.caat.entity.NotificationRule;
+import com.caat.entity.TrackedUser;
+import com.caat.repository.ContentRepository;
 import com.caat.repository.NotificationRepository;
+import com.caat.repository.TrackedUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import org.springframework.data.domain.PageRequest;
+
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -20,6 +25,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -33,6 +39,8 @@ public class NotificationService {
     
     private final NotificationRuleService notificationRuleService;
     private final NotificationRepository notificationRepository;
+    private final ContentRepository contentRepository;
+    private final TrackedUserRepository trackedUserRepository;
     private final RestTemplate restTemplate;
     private final JavaMailSender mailSender; // 可选，如果未配置则使用日志记录
     private final NotificationChannelConfigService channelConfigService; // 可选，用于解析 channelConfigId
@@ -62,11 +70,15 @@ public class NotificationService {
     public NotificationService(
             NotificationRuleService notificationRuleService,
             NotificationRepository notificationRepository,
+            ContentRepository contentRepository,
+            TrackedUserRepository trackedUserRepository,
             RestTemplate restTemplate,
             @org.springframework.beans.factory.annotation.Autowired(required = false) JavaMailSender mailSender,
             @org.springframework.beans.factory.annotation.Autowired(required = false) NotificationChannelConfigService channelConfigService) {
         this.notificationRuleService = notificationRuleService;
         this.notificationRepository = notificationRepository;
+        this.contentRepository = contentRepository;
+        this.trackedUserRepository = trackedUserRepository;
         this.restTemplate = restTemplate;
         this.mailSender = mailSender;
         this.channelConfigService = channelConfigService;
@@ -272,7 +284,7 @@ public class NotificationService {
         // QQ_GROUP / FEISHU 规则类型：不依赖 notificationMethods，直接按规则类型发送
         if ("QQ_GROUP".equalsIgnoreCase(rule.getRuleType())) {
             try {
-                sendQqGroupNotification(content, rule, sendConfig);
+                sendQqGroupNotification(content, rule, sendConfig, true);
             } catch (Exception e) {
                 log.error("发送 QQ 群通知失败: rule={}", rule.getName(), e);
             }
@@ -280,7 +292,7 @@ public class NotificationService {
         }
         if ("FEISHU".equalsIgnoreCase(rule.getRuleType())) {
             try {
-                sendFeishuNotification(content, rule, sendConfig);
+                sendFeishuNotification(content, rule, sendConfig, true);
             } catch (Exception e) {
                 log.error("发送飞书通知失败: rule={}", rule.getName(), e);
             }
@@ -299,7 +311,7 @@ public class NotificationService {
                     case "EMAIL" -> sendEmailNotification(content, rule, config);
                     case "WEBHOOK" -> sendWebhookNotification(content, rule, config);
                     case "DESKTOP" -> sendDesktopNotification(content, rule); // 桌面通知需要前端配合
-                    case "QQ_GROUP" -> sendQqGroupNotification(content, rule, config);
+                    case "QQ_GROUP" -> sendQqGroupNotification(content, rule, config, true);
                     default -> log.warn("未知的通知方式: {}", method);
                 }
             } catch (Exception e) {
@@ -315,7 +327,7 @@ public class NotificationService {
      * config: qqGroupId, qqApiUrl, messageTemplate, qqBotType（go-cqhttp|mirai）, qqSessionKey（Mirai 必填）
      */
     @SuppressWarnings("unchecked")
-    private void sendQqGroupNotification(Content content, NotificationRule rule, Map<String, Object> config) {
+    private void sendQqGroupNotification(Content content, NotificationRule rule, Map<String, Object> config, boolean saveRecord) {
         String groupIdStr = config.get("qqGroupId") != null ? config.get("qqGroupId").toString().trim() : null;
         if (groupIdStr == null || groupIdStr.isEmpty()) {
             log.warn("QQ 群号未配置: rule={}", rule.getName());
@@ -336,9 +348,10 @@ public class NotificationService {
         if (template == null || template.isEmpty()) {
             template = "【新内容】{title}\n作者: {author}\n平台: {platform}\n链接: {url}";
         }
+        String author = getAuthorDisplayName(content, config);
         String message = template
             .replace("{title}", content.getTitle() != null ? content.getTitle() : "无标题")
-            .replace("{author}", content.getUser() != null ? content.getUser().getDisplayName() != null ? content.getUser().getDisplayName() : content.getUser().getUsername() : "—")
+            .replace("{author}", author)
             .replace("{platform}", content.getPlatform() != null ? content.getPlatform().getName() : "—")
             .replace("{url}", content.getUrl() != null ? content.getUrl() : "");
 
@@ -366,7 +379,12 @@ public class NotificationService {
             try {
                 restTemplate.postForObject(apiUrl, body, String.class);
                 log.info("QQ 群通知已发送(Mirai): rule={}, groupId={}, contentId={}", rule.getName(), target, content.getId());
-                saveNotificationRecord(content, rule, "QQ_GROUP");
+                if (log.isDebugEnabled()) {
+                    log.debug("下发数据 QQ_GROUP(Mirai): rule={}, contentId={}, messageLen={}, messagePreview={}",
+                            rule.getName(), content.getId(), message.length(),
+                            message.length() > 100 ? message.substring(0, 100) + "..." : message);
+                }
+                if (saveRecord) saveNotificationRecord(content, rule, "QQ_GROUP");
             } catch (Exception e) {
                 log.error("Mirai 发送群消息失败: rule={}, api={}", rule.getName(), apiUrl, e);
             }
@@ -380,13 +398,21 @@ public class NotificationService {
             Map<String, Object> body = Map.of("group_id", groupId, "message", message);
             restTemplate.postForObject(apiUrl, body, String.class);
             log.info("QQ 群通知已发送(go-cqhttp): rule={}, groupId={}, contentId={}", rule.getName(), groupId, content.getId());
-            saveNotificationRecord(content, rule, "QQ_GROUP");
+            if (log.isDebugEnabled()) {
+                log.debug("下发数据 QQ_GROUP(go-cqhttp): rule={}, contentId={}, messageLen={}, messagePreview={}",
+                        rule.getName(), content.getId(), message.length(),
+                        message.length() > 100 ? message.substring(0, 100) + "..." : message);
+            }
+            if (saveRecord) saveNotificationRecord(content, rule, "QQ_GROUP");
         } catch (NumberFormatException e) {
             log.warn("QQ 群号格式无效，尝试字符串: groupId={}", groupIdStr);
             Map<String, Object> body = Map.of("group_id", groupIdStr, "message", message);
             restTemplate.postForObject(apiUrl, body, String.class);
             log.info("QQ 群通知已发送(go-cqhttp): rule={}, groupId={}, contentId={}", rule.getName(), groupIdStr, content.getId());
-            saveNotificationRecord(content, rule, "QQ_GROUP");
+            if (log.isDebugEnabled()) {
+                log.debug("下发数据 QQ_GROUP(go-cqhttp): rule={}, contentId={}, messageLen={}", rule.getName(), content.getId(), message.length());
+            }
+            if (saveRecord) saveNotificationRecord(content, rule, "QQ_GROUP");
         }
     }
 
@@ -395,7 +421,7 @@ public class NotificationService {
      * config: userIds, feishuAppId, feishuAppSecret, feishuReceiveId（群 chat_id 或用户 open_id）, feishuReceiveIdType（chat_id/open_id/user_id）, messageTemplate
      */
     @SuppressWarnings("unchecked")
-    private void sendFeishuNotification(Content content, NotificationRule rule, Map<String, Object> config) {
+    private void sendFeishuNotification(Content content, NotificationRule rule, Map<String, Object> config, boolean saveRecord) {
         String appId = config.get("feishuAppId") != null ? config.get("feishuAppId").toString().trim() : null;
         if (appId == null || appId.isEmpty()) {
             appId = defaultFeishuAppId != null ? defaultFeishuAppId.trim() : null;
@@ -417,14 +443,24 @@ public class NotificationService {
         if (receiveIdType.isEmpty()) receiveIdType = "chat_id";
 
         String template = config.get("messageTemplate") != null ? config.get("messageTemplate").toString() : null;
+        String text;
         if (template == null || template.isEmpty()) {
-            template = "【新内容】{title}\n作者: {author}\n平台: {platform}\n链接: {url}";
+            // 飞书默认三行：第一行【作者+平台】用 username，第二行 body，第三行链接
+            String author = content.getUser() != null && content.getUser().getUsername() != null
+                    ? content.getUser().getUsername() : "—";
+            String platform = content.getPlatform() != null ? content.getPlatform().getName() : "—";
+            String body = content.getBody() != null ? content.getBody() : "";
+            String url = content.getUrl() != null ? content.getUrl() : "";
+            text = "【" + author + " | " + platform + "】\n" + body + "\n" + url;
+        } else {
+            String author = getAuthorDisplayName(content, config);
+            text = template
+                .replace("{title}", content.getTitle() != null ? content.getTitle() : "无标题")
+                .replace("{author}", author)
+                .replace("{platform}", content.getPlatform() != null ? content.getPlatform().getName() : "—")
+                .replace("{body}", content.getBody() != null ? content.getBody() : "")
+                .replace("{url}", content.getUrl() != null ? content.getUrl() : "");
         }
-        String text = template
-            .replace("{title}", content.getTitle() != null ? content.getTitle() : "无标题")
-            .replace("{author}", content.getUser() != null ? (content.getUser().getDisplayName() != null ? content.getUser().getDisplayName() : content.getUser().getUsername()) : "—")
-            .replace("{platform}", content.getPlatform() != null ? content.getPlatform().getName() : "—")
-            .replace("{url}", content.getUrl() != null ? content.getUrl() : "");
 
         String token = getFeishuTenantAccessToken(appId, appSecret);
         if (token == null) {
@@ -445,7 +481,12 @@ public class NotificationService {
             org.springframework.http.HttpEntity<Map<String, Object>> entity = new org.springframework.http.HttpEntity<>(body, headers);
             restTemplate.postForEntity(url, entity, Map.class);
             log.info("飞书通知已发送: rule={}, receiveId={}, contentId={}", rule.getName(), receiveId, content.getId());
-            saveNotificationRecord(content, rule, "FEISHU");
+            if (log.isDebugEnabled()) {
+                log.debug("下发数据 FEISHU: rule={}, contentId={}, receiveId={}, textLen={}, textPreview={}",
+                        rule.getName(), content.getId(), receiveId, text.length(),
+                        text.length() > 100 ? text.substring(0, 100) + "..." : text);
+            }
+            if (saveRecord) saveNotificationRecord(content, rule, "FEISHU");
         } catch (Exception e) {
             log.error("飞书发送消息失败: rule={}, receiveId={}", rule.getName(), receiveId, e);
         }
@@ -456,11 +497,18 @@ public class NotificationService {
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 
+    /** 测试模式：default=默认语句，random_content=随机选该用户一篇文章按当前格式下发 */
+    public static final String TEST_MODE_DEFAULT = "default";
+    public static final String TEST_MODE_RANDOM_CONTENT = "random_content";
+
     /**
-     * 发送测试消息到规则配置的机器人（QQ 群 / 飞书），用于验证通道是否可用。
+     * 发送测试消息到规则配置的机器人（QQ 群 / 飞书）。
+     * @param rule 规则（含 config、userIds 等）
+     * @param testMode default=默认语句，random_content=随机选监听用户的一篇文章按当前格式下发
      * @return null 表示成功，非 null 为错误信息
      */
-    public String sendTestMessage(NotificationRule rule) {
+    @SuppressWarnings("unchecked")
+    public String sendTestMessage(NotificationRule rule, String testMode) {
         Map<String, Object> config = rule.getConfig();
         if (config == null) {
             return "规则未配置";
@@ -469,6 +517,17 @@ public class NotificationService {
         if (ruleType == null) {
             return "规则类型未知";
         }
+        if (TEST_MODE_RANDOM_CONTENT.equals(testMode)) {
+            List<String> userIdStrs = config.get("userIds") instanceof List ? (List<String>) config.get("userIds") : null;
+            if (userIdStrs == null || userIdStrs.isEmpty()) {
+                return "随机文章模式需配置监听用户（userIds）";
+            }
+            Optional<Content> randomContent = getRandomContentFromUserIds(userIdStrs);
+            if (randomContent.isEmpty()) {
+                return "监听用户暂无内容，请先拉取或改用默认语句";
+            }
+            return sendContentAsTest(randomContent.get(), rule, ruleType);
+        }
         return switch (ruleType.toUpperCase()) {
             case "QQ_GROUP" -> sendQqGroupTestMessage(rule, config);
             case "FEISHU" -> sendFeishuTestMessage(rule, config);
@@ -476,13 +535,54 @@ public class NotificationService {
         };
     }
 
+    /** 从 userIds 中随机选一用户，再随机选该用户的一篇文章 */
+    private Optional<Content> getRandomContentFromUserIds(List<String> userIdStrs) {
+        java.util.List<UUID> validIds = new java.util.ArrayList<>();
+        for (String s : userIdStrs) {
+            if (s == null || s.isBlank()) continue;
+            try {
+                validIds.add(UUID.fromString(s.trim()));
+            } catch (IllegalArgumentException ignored) {}
+        }
+        if (validIds.isEmpty()) return Optional.empty();
+        UUID userId = validIds.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(validIds.size()));
+        long count = contentRepository.countByUserId(userId);
+        if (count == 0) return Optional.empty();
+        int offset = (int) (java.util.concurrent.ThreadLocalRandom.current().nextLong(count));
+        var page = contentRepository.findByUserIdWithPlatformAndUser(userId, PageRequest.of(offset, 1));
+        return page.hasContent() ? Optional.of(page.getContent().get(0)) : Optional.empty();
+    }
+
+    /** 将指定内容按规则格式发送到 QQ/飞书（测试用，不保存通知记录） */
+    private String sendContentAsTest(Content content, NotificationRule rule, String ruleType) {
+        Map<String, Object> config = resolveConfigForSend(rule);
+        if (config == null) return "解析配置失败";
+        try {
+            if ("QQ_GROUP".equalsIgnoreCase(ruleType)) {
+                sendQqGroupNotification(content, rule, config, false);
+            } else if ("FEISHU".equalsIgnoreCase(ruleType)) {
+                sendFeishuNotification(content, rule, config, false);
+            } else {
+                return "该规则类型不支持测试";
+            }
+            log.info("测试下发（随机文章）已发送: rule={}, contentId={}", rule.getName(), content.getId());
+            return null;
+        } catch (Exception e) {
+            log.warn("测试下发（随机文章）失败: rule={}", rule.getName(), e);
+            return e.getMessage() != null ? e.getMessage() : "发送失败";
+        }
+    }
+
     /**
-     * 按规则类型 + 配置直接发送测试消息（不依赖已保存规则），用于页面上「测试某种规则类型是否可行」。
+     * 按规则类型 + 配置直接发送测试消息（不依赖已保存规则）。
      * @param ruleType QQ_GROUP 或 FEISHU
-     * @param config 对应类型的 config 字段（qqGroupId、qqApiUrl 等 或 feishuAppId、feishuReceiveId 等）
+     * @param config 对应类型的 config
+     * @param testMode default 或 random_content；random_content 时需 config 含 userIds 或传 userIds
+     * @param userIds 可选，random_content 时若 config 无 userIds 则用此
      * @return null 表示成功，非 null 为错误信息
      */
-    public String sendTestMessageWithConfig(String ruleType, Map<String, Object> config) {
+    @SuppressWarnings("unchecked")
+    public String sendTestMessageWithConfig(String ruleType, Map<String, Object> config, String testMode, List<String> userIds) {
         if (ruleType == null || ruleType.isBlank()) {
             return "请选择规则类型";
         }
@@ -491,9 +591,23 @@ public class NotificationService {
         }
         NotificationRule dummy = new NotificationRule();
         dummy.setRuleType(ruleType.trim());
-        dummy.setConfig(config);
+        Map<String, Object> mergedConfig = new HashMap<>(config);
+        if (TEST_MODE_RANDOM_CONTENT.equals(testMode) && (userIds != null && !userIds.isEmpty())) {
+            mergedConfig.put("userIds", userIds);
+        }
+        dummy.setConfig(mergedConfig);
         dummy.setName("测试");
-        return sendTestMessage(dummy);
+        return sendTestMessage(dummy, testMode != null ? testMode : TEST_MODE_DEFAULT);
+    }
+
+    /** 兼容旧调用：默认语句模式 */
+    public String sendTestMessage(NotificationRule rule) {
+        return sendTestMessage(rule, TEST_MODE_DEFAULT);
+    }
+
+    /** 兼容旧调用：默认语句模式 */
+    public String sendTestMessageWithConfig(String ruleType, Map<String, Object> config) {
+        return sendTestMessageWithConfig(ruleType, config, TEST_MODE_DEFAULT, null);
     }
 
     private static final String TEST_MESSAGE = "【测试】这是一条来自内容聚合系统的测试消息。若收到则说明通知通道正常。";
@@ -655,8 +769,12 @@ public class NotificationService {
             
             mailSender.send(message);
             log.info("邮件通知已发送: email={}, contentId={}", email, content.getId());
-            
-            // 保存通知记录
+            if (log.isDebugEnabled()) {
+                String subj = message.getSubject();
+                log.debug("下发数据 EMAIL: rule={}, contentId={}, to={}, subjectLen={}, subjectPreview={}",
+                        rule.getName(), content.getId(), email, subj != null ? subj.length() : 0,
+                        subj != null && subj.length() > 60 ? subj.substring(0, 60) + "..." : subj);
+            }
             saveNotificationRecord(content, rule, "EMAIL");
         } catch (Exception e) {
             log.error("发送邮件通知失败: email={}", email, e);
@@ -674,20 +792,25 @@ public class NotificationService {
         }
         
         try {
+            String author = getAuthorDisplayName(content, config);
             Map<String, Object> payload = Map.of(
                 "rule", rule.getName(),
                 "contentId", content.getId().toString(),
                 "title", content.getTitle() != null ? content.getTitle() : "",
-                "url", content.getUrl(),
-                "author", content.getUser().getUsername(),
-                "platform", content.getPlatform().getName(),
-                "publishedAt", content.getPublishedAt().toString()
+                "url", content.getUrl() != null ? content.getUrl() : "",
+                "author", author,
+                "platform", content.getPlatform() != null ? content.getPlatform().getName() : "",
+                "publishedAt", content.getPublishedAt() != null ? content.getPublishedAt().toString() : ""
             );
             
             restTemplate.postForObject(webhookUrl, payload, String.class);
             log.info("Webhook 通知已发送: url={}, contentId={}", webhookUrl, content.getId());
-            
-            // 保存通知记录
+            if (log.isDebugEnabled()) {
+                String title = content.getTitle();
+                log.debug("下发数据 WEBHOOK: rule={}, contentId={}, url={}, payloadKeys=rule,contentId,title,url,author,platform,publishedAt, titlePreview={}",
+                        rule.getName(), content.getId(), webhookUrl,
+                        title != null && title.length() > 60 ? title.substring(0, 60) + "..." : title);
+            }
             saveNotificationRecord(content, rule, "WEBHOOK");
         } catch (Exception e) {
             log.error("发送 Webhook 通知失败: url={}", webhookUrl, e);
@@ -709,6 +832,12 @@ public class NotificationService {
         notification.setIsRead(false);
         notificationRepository.save(notification);
         log.info("桌面通知记录已保存: rule={}, contentId={}", rule.getName(), content.getId());
+        if (log.isDebugEnabled()) {
+            log.debug("存储通知记录 DESKTOP: rule={}, contentId={}, title={}",
+                    rule.getName(), content.getId(),
+                    content.getTitle() != null && content.getTitle().length() > 60
+                            ? content.getTitle().substring(0, 60) + "..." : content.getTitle());
+        }
     }
     
     /**
@@ -724,28 +853,53 @@ public class NotificationService {
         notification.setNotificationType(notificationType);
         notification.setIsRead(false);
         notificationRepository.save(notification);
+        if (log.isDebugEnabled()) {
+            log.debug("存储通知记录: rule={}, contentId={}, type={}, title={}",
+                    rule.getName(), content.getId(), notificationType,
+                    content.getTitle() != null && content.getTitle().length() > 60
+                            ? content.getTitle().substring(0, 60) + "..." : content.getTitle());
+        }
+    }
+    
+    /**
+     * 下发时使用的作者名称：优先使用规则 config 中的 authorDisplayName（配置的用户名称），否则用用户的 displayName/username。
+     */
+    private String getAuthorDisplayName(Content content, Map<String, Object> config) {
+        if (config != null) {
+            Object v = config.get("username");
+            if (v != null && v.toString().trim().length() > 0) {
+                return v.toString().trim();
+            }
+        }
+        if (content.getUser() == null) return "—";
+        if (content.getUser().getDisplayName() != null && !content.getUser().getDisplayName().trim().isEmpty()) {
+            return content.getUser().getDisplayName().trim();
+        }
+        return content.getUser().getUsername() != null ? content.getUser().getUsername() : "—";
     }
     
     /**
      * 构建通知消息
      */
     private String buildNotificationMessage(Content content, NotificationRule rule) {
+        String author = getAuthorDisplayName(content, rule.getConfig());
         return String.format("规则: %s\n作者: %s\n平台: %s\n链接: %s", 
                 rule.getName(),
-                content.getUser().getUsername(),
-                content.getPlatform().getName(),
-                content.getUrl());
+                author,
+                content.getPlatform() != null ? content.getPlatform().getName() : "—",
+                content.getUrl() != null ? content.getUrl() : "");
     }
     
     /**
      * 构建邮件内容
      */
     private String buildEmailContent(Content content, NotificationRule rule) {
+        String author = getAuthorDisplayName(content, rule.getConfig());
         StringBuilder sb = new StringBuilder();
         sb.append("通知规则: ").append(rule.getName()).append("\n\n");
         sb.append("标题: ").append(content.getTitle() != null ? content.getTitle() : "无标题").append("\n");
-        sb.append("作者: ").append(content.getUser().getUsername()).append("\n");
-        sb.append("平台: ").append(content.getPlatform().getName()).append("\n");
+        sb.append("作者: ").append(author).append("\n");
+        sb.append("平台: ").append(content.getPlatform() != null ? content.getPlatform().getName() : "—").append("\n");
         sb.append("发布时间: ").append(content.getPublishedAt()).append("\n");
         sb.append("链接: ").append(content.getUrl()).append("\n\n");
         if (content.getBody() != null && !content.getBody().isEmpty()) {

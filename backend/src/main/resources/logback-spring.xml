@@ -54,7 +54,7 @@
         </rollingPolicy>
     </appender>
     
-    <!-- 日志级别配置：SQL、参数绑定等无关日志设为 DEBUG，仅在显式开启 DEBUG 时输出 -->
+    <!-- 日志级别配置：com.caat 为 DEBUG 时输出接口入参/出参、关键存储、下发数据等 -->
     <logger name="com.caat" level="DEBUG"/>
     <logger name="org.springframework.web" level="INFO"/>
     <logger name="org.hibernate.SQL" level="INFO"/>

@@ -5,6 +5,7 @@ import { getToken } from './services/api'
 
 // 代码分割：使用 React.lazy 实现路由级别的懒加载
 const Login = lazy(() => import('./pages/Login'))
+const Register = lazy(() => import('./pages/Register'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Platforms = lazy(() => import('./pages/Platforms'))
 const Users = lazy(() => import('./pages/Users'))
@@ -36,6 +37,7 @@ function AppRoutes() {
     <Suspense fallback={<LoadingFallback />}>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/platforms" element={<RequireAuth><Platforms /></RequireAuth>} />
         <Route path="/users" element={<RequireAuth><Users /></RequireAuth>} />

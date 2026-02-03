@@ -63,8 +63,6 @@ function getPreviewText(body: string | undefined): string {
 
 type ViewMode = 'timeline' | 'table';
 
-const MONTH_NAMES = ['', '一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
-
 const CONTENTS_LIST_STATE_KEY = 'contents_list_state';
 
 function getInitialContentsListState(): {
@@ -105,6 +103,8 @@ function getMonthRange(year: number, month: number): { startTime: string; endTim
   return { startTime: startStr, endTime: endStr };
 }
 
+const MONTH_NAMES = ['', '一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+
 function Contents() {
   const navigate = useNavigate();
   const [contents, setContents] = useState<Content[]>([]);
@@ -116,14 +116,16 @@ function Contents() {
   const [filters, setFilters] = useState<{ platformId?: string; userId?: string; search?: string }>(() => getInitialContentsListState().filters);
   const [advancedSearchVisible, setAdvancedSearchVisible] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState(() => getInitialContentsListState().searchKeyword);
-  /** 时间线：按平台→用户→月聚合数量（仅数量，点击某月再拉该月文章） */
+  /** 时间线：按平台→用户→月聚合数量（仅数量，点击某年再拉该年文章） */
   const [groupedData, setGroupedData] = useState<{ total: number; platforms: any[] } | null>(null);
   /** 某月已加载的文章列表，key 为 platformId|userId|year|month */
   const [monthContentsMap, setMonthContentsMap] = useState<Record<string, { list: Content[]; total: number }>>({});
   /** 正在加载某月的 key */
   const [loadingMonthKey, setLoadingMonthKey] = useState<string | null>(null);
-  /** 时间线：当前展开的某月 key */
+  /** 时间线：当前展开的某月 key（用于显示文章列表） */
   const [expandedMonthKey, setExpandedMonthKey] = useState<string | null>(null);
+  /** 时间线：当前展开的某年 key（用于显示该年下的月份） */
+  const [expandedYearKey, setExpandedYearKey] = useState<string | null>(null);
   /** 表格：点击标题预显内容的 Modal */
   const [previewContent, setPreviewContent] = useState<Content | null>(null);
   /** 删除指定作者：弹窗与两步确认 */
@@ -383,6 +385,7 @@ function Contents() {
         if (viewMode === 'timeline') {
           setMonthContentsMap({});
           setExpandedMonthKey(null);
+          setExpandedYearKey(null);
           loadGroupedCounts();
         } else {
           loadContents(1, pagination.pageSize);
@@ -599,14 +602,14 @@ function Contents() {
         <header className="contents-page__header">
           <div className="contents-page__title-wrap">
             <h1 className="contents-page__title">内容管理</h1>
-            <p className="contents-page__subtitle">按平台与时间浏览，或使用表格筛选与搜索</p>
+            <p className="contents-page__subtitle">按平台、用户、年份浏览，或使用表格筛选与搜索</p>
         </div>
           <Space wrap size="middle">
             <Segmented
               value={viewMode}
               onChange={(v) => setViewMode(v as ViewMode)}
               options={[
-                { label: <Space size={6}><CalendarOutlined />按平台 · 作者 · 年 · 月</Space>, value: 'timeline' },
+                { label: <Space size={6}><CalendarOutlined />按平台 · 用户 · 年份</Space>, value: 'timeline' },
                 { label: <Space size={6}><AppstoreOutlined />表格</Space>, value: 'table' },
               ]}
               className="contents-page__view-switch"
@@ -798,7 +801,7 @@ function Contents() {
               </Card>
             ) : (
               <Collapse
-                defaultActiveKey={filteredPlatforms.map((p: any) => p.platformId || p.platformName)}
+                defaultActiveKey={filteredPlatforms.map((p: any) => p.platformId ?? p.platformName)}
                 expandIcon={({ isActive }) => <RightOutlined rotate={isActive ? 90 : 0} className="contents-timeline-collapse__icon" />}
                 className="contents-timeline-collapse"
               >
@@ -814,67 +817,86 @@ function Contents() {
                     className="contents-timeline-collapse__panel"
                   >
                     <div className="contents-timeline-users-row">
-                    {(platform.users ?? []).map((user: any) => (
-                      <div key={user.userId ?? user.username} className="contents-timeline-user">
-                        <div className="contents-timeline-user__title">
-                          <span className="contents-timeline-user__name">{user.username ?? '-'}</span>
-                          <Tag className="contents-timeline-user__count">{user.total ?? 0} 条</Tag>
-                        </div>
-                        {(() => {
-                          const months = (user.months ?? []).slice().sort((a: any, b: any) => {
-                            const y = Number(b.year) - Number(a.year);
-                            return y !== 0 ? y : Number(b.month) - Number(a.month);
-                          });
-                          const byYear = new Map<number, any[]>();
-                          months.forEach((mo: any) => {
-                            const y = Number(mo.year);
-                            if (!byYear.has(y)) byYear.set(y, []);
-                            byYear.get(y)!.push(mo);
-                          });
-                          return Array.from(byYear.entries()).map(([year, yearMonths]) => (
-                            <div key={year} className="contents-timeline-year">
-                              <div className="contents-timeline-year__title">{year} 年</div>
-                              {yearMonths.map((mo: any) => {
-                                const month = Number(mo.month);
-                                const count = Number(mo.count ?? 0);
-                                const monthKey = `${platform.platformId ?? ''}|${user.userId ?? ''}|${year}|${month}`;
-                                const isExpanded = expandedMonthKey === monthKey;
-                                const isLoading = loadingMonthKey === monthKey;
-                                const loaded = monthContentsMap[monthKey];
-                                return (
-                                  <div key={`${year}-${month}`} className="contents-timeline-month">
-                                    <div
-                                      className="contents-timeline-month__title contents-timeline-month__title--clickable"
-                                      role="button"
-                                      tabIndex={0}
-                                      onClick={() => (isLoading ? undefined : loadMonthContents(platform.platformId, user.userId, year, month))}
-                                      onKeyDown={(e) => e.key === 'Enter' && !isLoading && loadMonthContents(platform.platformId, user.userId, year, month)}
-                                    >
-                                      <RightOutlined style={{ fontSize: 10, marginRight: 4, transform: isExpanded ? 'rotate(90deg)' : 'none' }} />
-                                      <CalendarOutlined />
-                                      {MONTH_NAMES[month]} · {count} 条
-                                    </div>
-                                    {isExpanded && (
-                                      <div className="contents-timeline-month__list">
-                                        {isLoading ? (
-                                          <div style={{ padding: 16, textAlign: 'center' }}><Text type="secondary">加载中…</Text></div>
-                                        ) : loaded ? (
-                                          loaded.list.length === 0 ? (
-                                            <div style={{ padding: 16, color: '#8c8c8c' }}>该月暂无文章</div>
-                                          ) : (
-                                            loaded.list.map((c) => renderContentCard(c))
-                                          )
-                                        ) : null}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                      {(platform.users ?? []).map((user: any) => {
+                        const months = (user.months ?? []).slice().sort((a: any, b: any) => {
+                          const y = Number(b.year) - Number(a.year);
+                          return y !== 0 ? y : Number(b.month) - Number(a.month);
+                        });
+                        const byYear = new Map<number, any[]>();
+                        months.forEach((mo: any) => {
+                          const y = Number(mo.year);
+                          if (!byYear.has(y)) byYear.set(y, []);
+                          byYear.get(y)!.push(mo);
+                        });
+                        const years = Array.from(byYear.entries()).sort((a, b) => b[0] - a[0]);
+                        return (
+                          <div key={user.userId ?? user.username} className="contents-timeline-user">
+                            <div className="contents-timeline-user__title">
+                              <span className="contents-timeline-user__name">{user.username ?? '-'}</span>
+                              <Tag className="contents-timeline-user__count">{user.total ?? 0} 条</Tag>
                             </div>
-                          ));
-                        })()}
-                      </div>
-                    ))}
+                            {years.map(([year, yearMonths]) => {
+                              const yearTotal = yearMonths.reduce((s: number, m: any) => s + Number(m.count ?? 0), 0);
+                              const yearKey = `${platform.platformId ?? ''}|${user.userId ?? ''}|${year}`;
+                              const isYearExpanded = expandedYearKey === yearKey;
+                              return (
+                                <div key={year} className="contents-timeline-year">
+                                  <div
+                                    className="contents-timeline-year__title contents-timeline-year__title--clickable"
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => setExpandedYearKey((k) => (k === yearKey ? null : yearKey))}
+                                    onKeyDown={(e) => e.key === 'Enter' && setExpandedYearKey((k) => (k === yearKey ? null : yearKey))}
+                                  >
+                                    <RightOutlined style={{ fontSize: 10, marginRight: 4, transform: isYearExpanded ? 'rotate(90deg)' : 'none' }} />
+                                    <CalendarOutlined />
+                                    {year} 年 · 共 {yearTotal} 条
+                                  </div>
+                                  {isYearExpanded && (
+                                    <div className="contents-timeline-year__months">
+                                      {yearMonths.map((mo: any) => {
+                                        const month = Number(mo.month);
+                                        const count = Number(mo.count ?? 0);
+                                        const monthKey = `${platform.platformId ?? ''}|${user.userId ?? ''}|${year}|${month}`;
+                                        const isMonthExpanded = expandedMonthKey === monthKey;
+                                        const isLoading = loadingMonthKey === monthKey;
+                                        const loaded = monthContentsMap[monthKey];
+                                        return (
+                                          <div key={`${year}-${month}`} className="contents-timeline-month">
+                                            <div
+                                              className="contents-timeline-month__title contents-timeline-month__title--clickable"
+                                              role="button"
+                                              tabIndex={0}
+                                              onClick={() => (isLoading ? undefined : loadMonthContents(platform.platformId ?? '', user.userId ?? '', year, month))}
+                                              onKeyDown={(e) => e.key === 'Enter' && !isLoading && loadMonthContents(platform.platformId ?? '', user.userId ?? '', year, month)}
+                                            >
+                                              <RightOutlined style={{ fontSize: 10, marginRight: 4, transform: isMonthExpanded ? 'rotate(90deg)' : 'none' }} />
+                                              {MONTH_NAMES[month]} · {count} 条
+                                            </div>
+                                            {isMonthExpanded && (
+                                              <div className="contents-timeline-month__list">
+                                                {isLoading ? (
+                                                  <div style={{ padding: 16, textAlign: 'center' }}><Text type="secondary">加载中…</Text></div>
+                                                ) : loaded ? (
+                                                  loaded.list.length === 0 ? (
+                                                    <div style={{ padding: 16, color: '#8c8c8c' }}>该月暂无文章</div>
+                                                  ) : (
+                                                    loaded.list.map((c) => renderContentCard(c))
+                                                  )
+                                                ) : null}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
                     </div>
                   </Collapse.Panel>
                 ))}
@@ -883,7 +905,7 @@ function Contents() {
             {viewMode === 'timeline' && groupedData && groupedData.total > 0 && (
               <div className="contents-timeline-footer">
                 <Text type="secondary">
-                  共 {groupedData.total} 条。点击某月可展开该月文章；可切换「表格」查看分页或使用筛选缩小范围。
+                  共 {groupedData.total} 条。展开年份可查看月份，点击某月可加载该月文章；可切换「表格」查看分页或使用筛选缩小范围。
                 </Text>
               </div>
             )}
@@ -980,8 +1002,15 @@ function Contents() {
         .contents-timeline-user__title { font-size: 14px; font-weight: 600; color: #262626; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
         .contents-timeline-user__name { margin-right: 4px; }
         .contents-timeline-user__count { margin: 0; font-size: 12px; }
-        .contents-timeline-year { margin-bottom: 16px; }
-        .contents-timeline-year__title { font-size: 13px; font-weight: 600; color: #595959; margin-bottom: 8px; padding-left: 4px; }
+        .contents-timeline-year { margin-bottom: 12px; }
+        .contents-timeline-year:last-child { margin-bottom: 0; }
+        .contents-timeline-year__title {
+          font-size: 14px; font-weight: 600; color: #595959; margin-bottom: 6px;
+          display: flex; align-items: center; gap: 8px;
+        }
+        .contents-timeline-year__title--clickable { cursor: pointer; padding: 8px 12px; border-radius: 8px; }
+        .contents-timeline-year__title--clickable:hover { background: #f5f5f5; color: #262626; }
+        .contents-timeline-year__months { margin-left: 24px; padding-left: 8px; border-left: 2px solid #f0f0f0; }
         .contents-timeline-month { margin-bottom: 8px; }
         .contents-timeline-month__title {
           font-size: 13px; color: #8c8c8c; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;

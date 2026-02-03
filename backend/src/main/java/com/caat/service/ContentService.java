@@ -96,11 +96,16 @@ public class ContentService {
     }
 
     /**
-     * 按用户（及可选平台）、发布时间范围分页，用于内容管理「某月文章」点击加载
+     * 按用户（及可选平台）、发布时间范围分页，用于内容管理「某月/某年文章」点击加载。
+     * platformId 为 null 时使用单独查询，避免 PostgreSQL 无法推断 (:platformId IS NULL) 的参数类型。
      */
     public Page<Content> getContentsByUserAndPublishedAtBetween(UUID userId, UUID platformId,
                                                                 LocalDateTime startTime, LocalDateTime endTime,
                                                                 Pageable pageable) {
+        if (platformId == null) {
+            return contentRepository.findByUserIdAndPublishedAtBetweenWithPlatformAndUser(
+                userId, startTime, endTime, pageable);
+        }
         return contentRepository.findByPlatformIdAndUserIdAndPublishedAtBetween(
             platformId, userId, startTime, endTime, pageable);
     }
@@ -253,10 +258,12 @@ public class ContentService {
             history.setSearchType(searchType);
             history.setResultCount((int) results.getTotalElements());
             searchHistoryRepository.save(history);
+            if (log.isDebugEnabled()) {
+                log.debug("存储搜索历史: query={}, searchType={}, resultCount={}", trimmedKeyword, searchType, results.getTotalElements());
+            }
         } catch (Exception e) {
             log.warn("保存搜索历史失败: query={}", trimmedKeyword, e);
         }
-        
         return results;
     }
     
@@ -279,6 +286,9 @@ public class ContentService {
             history.setSearchType("ELASTICSEARCH");
             history.setResultCount((int) results.getTotalElements());
             searchHistoryRepository.save(history);
+            if (log.isDebugEnabled()) {
+                log.debug("存储搜索历史: query={}, searchType=ELASTICSEARCH, resultCount={}", query, results.getTotalElements());
+            }
         } catch (Exception e) {
             log.warn("保存搜索历史失败: query={}", query, e);
         }
@@ -303,6 +313,9 @@ public class ContentService {
             history.setSearchType("ELASTICSEARCH_REGEX");
             history.setResultCount((int) results.getTotalElements());
             searchHistoryRepository.save(history);
+            if (log.isDebugEnabled()) {
+                log.debug("存储搜索历史: query=regex:{}, searchType=ELASTICSEARCH_REGEX, resultCount={}", regexPattern, results.getTotalElements());
+            }
         } catch (Exception e) {
             log.warn("保存搜索历史失败: pattern={}", regexPattern, e);
         }
@@ -327,6 +340,9 @@ public class ContentService {
             history.setSearchType("ELASTICSEARCH_ADVANCED");
             history.setResultCount((int) results.getTotalElements());
             searchHistoryRepository.save(history);
+            if (log.isDebugEnabled()) {
+                log.debug("存储搜索历史: query=advanced:{}, searchType=ELASTICSEARCH_ADVANCED, resultCount={}", query, results.getTotalElements());
+            }
         } catch (Exception e) {
             log.warn("保存搜索历史失败: query={}", query, e);
         }
@@ -394,14 +410,18 @@ public class ContentService {
             existing.setTags(content.getTags());
         }
         Content saved = contentRepository.save(existing);
-        
+        if (log.isDebugEnabled()) {
+            String title = saved.getTitle();
+            log.debug("存储内容更新: id={}, title={}, isRead={}, isFavorite={}",
+                    saved.getId(), title != null && title.length() > 60 ? title.substring(0, 60) + "..." : title,
+                    saved.getIsRead(), saved.getIsFavorite());
+        }
         // 同步更新 Elasticsearch
         try {
             elasticsearchService.updateContent(saved);
         } catch (Exception e) {
             log.warn("更新 Elasticsearch 索引失败: {}", e.getMessage());
         }
-        
         return saved;
     }
     

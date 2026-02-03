@@ -223,7 +223,7 @@ export const tagApi = {
 export const authApi = {
   login: (data: { username: string; password: string }) =>
     apiClient.post<ApiResponse<any>>('/auth/login', data),
-  register: (data: { username: string; password: string }) =>
+  register: (data: { username: string; password: string; email?: string }) =>
     apiClient.post<ApiResponse<any>>('/auth/register', data),
 };
 
@@ -248,10 +248,11 @@ export const notificationRuleApi = {
   update: (id: string, data: { name?: string; ruleType?: string; config?: Record<string, unknown>; isEnabled?: boolean }) =>
     apiClient.put<ApiResponse<any>>(`/notification-rules/${id}`, data),
   delete: (id: string) => apiClient.delete<ApiResponse<void>>(`/notification-rules/${id}`),
-  /** 测试下发消息到规则配置的机器人（QQ 群 / 飞书），仅支持 QQ_GROUP、FEISHU 类型 */
-  test: (id: string) => apiClient.post<ApiResponse<{ success: boolean; message: string }>>(`/notification-rules/${id}/test`),
-  /** 按规则类型 + 配置直接测试下发（不依赖已保存规则） */
-  testWithConfig: (body: { ruleType: string; config: Record<string, unknown> }) =>
+  /** 测试下发：testMode=default 默认语句，random_content 随机选监听用户一篇文章 */
+  test: (id: string, body?: { testMode?: string }) =>
+    apiClient.post<ApiResponse<{ success: boolean; message: string }>>(`/notification-rules/${id}/test`, body ?? {}),
+  /** 按规则类型 + 配置直接测试下发；testMode=random_content 时需传 userIds */
+  testWithConfig: (body: { ruleType: string; config: Record<string, unknown>; testMode?: string; userIds?: string[] }) =>
     apiClient.post<ApiResponse<{ success: boolean; message: string }>>('/notifications/test-with-config', body),
 };
 

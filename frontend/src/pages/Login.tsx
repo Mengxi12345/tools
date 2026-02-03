@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { authApi, setToken, getApiErrorMessage } from '../services/api';
 
 function Login() {
@@ -53,6 +53,9 @@ function Login() {
               登录
             </Button>
           </Form.Item>
+          <div style={{ textAlign: 'center', marginTop: 8 }}>
+            <Link to="/register">没有账号？去注册</Link>
+          </div>
         </Form>
       </Card>
     </div>

@@ -428,6 +428,14 @@ public class ContentFetchService {
         
         Content saved = contentRepository.save(content);
         log.info("[保存排查] 保存内容成功: contentId={}, id={}", platformContent.getContentId(), saved.getId());
+        if (log.isDebugEnabled()) {
+            String title = saved.getTitle();
+            String titleShort = title != null && title.length() > 80 ? title.substring(0, 80) + "..." : title;
+            log.debug("存储内容: id={}, contentId={}, title={}, userId={}, platform={}",
+                    saved.getId(), saved.getContentId(), titleShort,
+                    content.getUser() != null ? content.getUser().getId() : null,
+                    content.getPlatform() != null ? content.getPlatform().getName() : null);
+        }
         // 触发通知规则（如 QQ 群推送）：异步避免阻塞拉取
         try {
             notificationService.checkAndNotify(saved);

@@ -1,14 +1,15 @@
 #!/bin/bash
 
-# 启动后端服务脚本
+# 启动后端服务脚本（使用 run-backend-no-sleep.sh 防止休眠影响定时任务）
 
 set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=========================================="
 echo "启动后端服务"
 echo "=========================================="
-
-cd backend
 
 # 检查后端是否已运行
 if curl -s http://localhost:8080/actuator/health > /dev/null 2>&1; then
@@ -16,11 +17,12 @@ if curl -s http://localhost:8080/actuator/health > /dev/null 2>&1; then
     exit 0
 fi
 
-echo "启动后端服务..."
-nohup mvn spring-boot:run > ../logs/backend.log 2>&1 &
+mkdir -p "$PROJECT_ROOT/logs"
+echo "启动后端服务（防休眠模式）..."
+nohup "$SCRIPT_DIR/run-backend-no-sleep.sh" dev >> "$PROJECT_ROOT/logs/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo "后端 PID: $BACKEND_PID"
-echo $BACKEND_PID > ../logs/backend.pid
+echo $BACKEND_PID > "$PROJECT_ROOT/logs/backend.pid"
 
 echo "等待后端启动（最多 60 秒）..."
 for i in {1..60}; do

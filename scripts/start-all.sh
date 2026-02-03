@@ -42,16 +42,18 @@ fi
 
 echo ""
 
-# 启动后端服务
+# 启动后端服务（使用 run-backend-no-sleep.sh 防止休眠影响定时任务）
 echo -e "${YELLOW}启动后端服务...${NC}"
-cd "$(dirname "$0")/../backend"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+mkdir -p "$PROJECT_ROOT/logs"
 
 # 检查是否已运行
 if curl -s http://localhost:8080/actuator/health > /dev/null 2>&1; then
     echo -e "${GREEN}✅ 后端服务已在运行${NC}"
 else
-    echo "正在启动后端服务..."
-    nohup mvn spring-boot:run > ../logs/backend-start.log 2>&1 &
+    echo "正在启动后端服务（防休眠模式）..."
+    nohup "$SCRIPT_DIR/run-backend-no-sleep.sh" dev >> "$PROJECT_ROOT/logs/backend-start.log" 2>&1 &
     BACKEND_PID=$!
     echo "后端进程 PID: $BACKEND_PID"
     
