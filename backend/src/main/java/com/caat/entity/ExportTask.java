@@ -51,6 +51,12 @@ public class ExportTask {
     @Column(name = "error_message", columnDefinition = "text")
     private String errorMessage;
 
+    @Column(name = "sort_order", length = 10)
+    private String sortOrder; // PDF/Word 日期排序：ASC | DESC
+
+    @Column(name = "log_messages", columnDefinition = "text")
+    private String logMessages; // 进度日志，JSON 数组字符串，如 ["开始加载...","已加载 100 篇"]
+
     @Column(name = "started_at")
     private LocalDateTime startedAt;
 
@@ -62,7 +68,7 @@ public class ExportTask {
     private LocalDateTime createdAt;
 
     public enum ExportFormat {
-        JSON, MARKDOWN, CSV, HTML
+        JSON, MARKDOWN, CSV, HTML, PDF, WORD
     }
 
     public enum TaskStatus {

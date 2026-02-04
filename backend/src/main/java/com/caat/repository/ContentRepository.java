@@ -208,4 +208,36 @@ public interface ContentRepository extends JpaRepository<Content, UUID> {
     @Modifying
     @Query("DELETE FROM Content c WHERE c.user.id = :userId")
     int deleteByUserId(@Param("userId") UUID userId);
+
+    /** 按平台类型查询所有内容（用于 TimeStore 图片修复等） */
+    @Query("SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user WHERE c.platform.type = :platformType")
+    List<Content> findByPlatformTypeWithPlatformAndUser(@Param("platformType") String platformType);
+    
+    /**
+     * 获取上一篇内容（按发布时间倒序，发布时间小于当前内容）
+     */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user " +
+            "WHERE c.publishedAt < :publishedAt ORDER BY c.publishedAt DESC")
+    List<Content> findPreviousContent(@Param("publishedAt") LocalDateTime publishedAt, Pageable pageable);
+    
+    /**
+     * 获取下一篇内容（按发布时间正序，发布时间大于当前内容）
+     */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user " +
+            "WHERE c.publishedAt > :publishedAt ORDER BY c.publishedAt ASC")
+    List<Content> findNextContent(@Param("publishedAt") LocalDateTime publishedAt, Pageable pageable);
+    
+    /**
+     * 获取同一用户的上一篇内容（按发布时间倒序）
+     */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user " +
+            "WHERE c.user.id = :userId AND c.publishedAt < :publishedAt ORDER BY c.publishedAt DESC")
+    List<Content> findPreviousContentByUser(@Param("userId") UUID userId, @Param("publishedAt") LocalDateTime publishedAt, Pageable pageable);
+    
+    /**
+     * 获取同一用户的下一篇内容（按发布时间正序）
+     */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user " +
+            "WHERE c.user.id = :userId AND c.publishedAt > :publishedAt ORDER BY c.publishedAt ASC")
+    List<Content> findNextContentByUser(@Param("userId") UUID userId, @Param("publishedAt") LocalDateTime publishedAt, Pageable pageable);
 }

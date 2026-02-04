@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Descriptions, Space, Button, Tag, message, Spin, Form, Input, Image } from 'antd';
-import { ArrowLeftOutlined, LinkOutlined, StarOutlined, StarFilled, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, LinkOutlined, StarOutlined, StarFilled, EyeOutlined, ReloadOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { contentApi, getApiErrorMessage, getPlatformAvatarSrc } from '../services/api';
 import MainLayout from '../components/Layout/MainLayout';
 import { getContentOriginalUrl, parseContentMetadata } from '../utils/contentUtils';
@@ -29,11 +29,17 @@ function ContentDetail() {
   const [content, setContent] = useState<ContentDetailData | null>(null);
   const [loading, setLoading] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+  const [adjacentContents, setAdjacentContents] = useState<{ previous: ContentDetailData | null; next: ContentDetailData | null }>({
+    previous: null,
+    next: null,
+  });
+  const [loadingAdjacent, setLoadingAdjacent] = useState(false);
   const [form] = Form.useForm();
 
   useEffect(() => {
     if (id) {
       loadContent(id);
+      loadAdjacentContents(id);
     }
   }, [id]);
 
@@ -51,6 +57,25 @@ function ContentDetail() {
       message.error(getApiErrorMessage(error, '加载内容详情失败'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAdjacentContents = async (contentId: string) => {
+    setLoadingAdjacent(true);
+    try {
+      // sameUserOnly=true: 只在同一作者的所有文章中按时间顺序跳转
+      const response: any = await contentApi.getAdjacent(contentId, true);
+      if (response?.code === 200 && response?.data) {
+        setAdjacentContents({
+          previous: response.data.previous || null,
+          next: response.data.next || null,
+        });
+      }
+    } catch (error) {
+      // 静默失败，不影响主要内容显示
+      console.warn('加载相邻内容失败:', error);
+    } finally {
+      setLoadingAdjacent(false);
     }
   };
 
@@ -261,6 +286,54 @@ function ContentDetail() {
                 </Card>
               );
             })()}
+
+            {/* 上一篇/下一篇导航 */}
+            <Card size="small" style={{ marginTop: 16, backgroundColor: '#fafafa' }}>
+              <Space style={{ width: '100%', justifyContent: 'space-between' }} size="middle">
+                <Button
+                  icon={<LeftOutlined />}
+                  disabled={!adjacentContents.previous}
+                  onClick={() => {
+                    if (adjacentContents.previous?.id) {
+                      navigate(`/contents/${adjacentContents.previous.id}`);
+                    }
+                  }}
+                  loading={loadingAdjacent}
+                  style={{ flex: 1, textAlign: 'left' }}
+                >
+                  {adjacentContents.previous ? (
+                    <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      上一篇：{((adjacentContents.previous.title || '无标题').length > 8 
+                        ? (adjacentContents.previous.title || '无标题').substring(0, 8) + '...'
+                        : (adjacentContents.previous.title || '无标题'))}
+                    </span>
+                  ) : (
+                    '上一篇'
+                  )}
+                </Button>
+                <Button
+                  icon={<RightOutlined />}
+                  disabled={!adjacentContents.next}
+                  onClick={() => {
+                    if (adjacentContents.next?.id) {
+                      navigate(`/contents/${adjacentContents.next.id}`);
+                    }
+                  }}
+                  loading={loadingAdjacent}
+                  style={{ flex: 1, textAlign: 'right' }}
+                >
+                  {adjacentContents.next ? (
+                    <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {((adjacentContents.next.title || '无标题').length > 8 
+                        ? (adjacentContents.next.title || '无标题').substring(0, 8) + '...'
+                        : (adjacentContents.next.title || '无标题'))}：下一篇
+                    </span>
+                  ) : (
+                    '下一篇'
+                  )}
+                </Button>
+              </Space>
+            </Card>
 
             {content.metadata && (
               <Card title="元数据（完整文章 JSON）" size="small">

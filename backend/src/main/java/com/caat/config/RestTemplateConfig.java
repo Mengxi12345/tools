@@ -25,8 +25,8 @@ public class RestTemplateConfig {
     @Bean(name = "timeStoreRestTemplate")
     public RestTemplate timeStoreRestTemplate() {
         RelaxedSSLRequestFactory factory = new RelaxedSSLRequestFactory();
-        factory.setConnectTimeout(5000);
-        factory.setReadTimeout(15000);
+        factory.setConnectTimeout(10000);  // 10s，部分 CDN 握手较慢
+        factory.setReadTimeout(30000);     // 30s，大图下载
         return new RestTemplate(factory);
     }
     

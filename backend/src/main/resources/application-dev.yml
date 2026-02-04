@@ -37,3 +37,10 @@ logging:
     root: INFO
     com.caat: DEBUG
     # 以下仅在需要排查时改为 DEBUG：org.springframework.web、org.hibernate.SQL
+
+# 防休眠配置（macOS）
+# 注意：推荐使用 scripts/run-backend-no-sleep.sh 启动服务以确保防休眠功能
+# 如果直接使用 mvnw spring-boot:run 启动，可以启用此选项让应用自动启动防休眠进程
+app:
+  prevent-sleep:
+    enabled: true  # 开发环境默认启用，确保定时任务不因系统休眠而停止

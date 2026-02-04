@@ -10,7 +10,7 @@
 - **定时拉取**：Quartz 定时任务（每 10 分钟，可开关）；支持按用户启用/禁用；调度状态 JDBC 持久化，重启不丢失
 - **搜索**：全文搜索（Elasticsearch）、关键词与高级筛选、搜索历史
 - **通知**：QQ 群（go-cqhttp / Mirai）、飞书、邮件、Webhook；支持通知通道配置复用、测试下发（默认语句 / 随机文章）
-- **导出**：JSON、Markdown、CSV、HTML
+- **导出**：JSON、Markdown、CSV、HTML、PDF、Word（PDF/Word 支持按年/月/日组织、图片嵌入、日期排序）
 
 ### 前端模块
 | 模块 | 路径 | 说明 |

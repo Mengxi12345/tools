@@ -84,6 +84,15 @@ public class ContentController {
         return ApiResponse.success(contentService.getContentById(id));
     }
     
+    @Operation(summary = "获取上一篇和下一篇内容", description = "根据当前内容ID获取相邻的内容，支持按同一用户或全局查找")
+    @GetMapping("/{id}/adjacent")
+    public ApiResponse<Map<String, Content>> getAdjacentContents(
+        @PathVariable UUID id,
+        @RequestParam(defaultValue = "false") boolean sameUserOnly
+    ) {
+        return ApiResponse.success(contentService.getAdjacentContents(id, sameUserOnly));
+    }
+    
     @Operation(summary = "更新内容", description = "更新内容状态（已读、收藏、备注等）")
     @PutMapping("/{id}")
     public ApiResponse<Content> updateContent(
@@ -189,5 +198,19 @@ public class ContentController {
             @RequestParam(defaultValue = "10") int limit
     ) {
         return ApiResponse.success(contentService.getRecentSearchQueries(limit));
+    }
+
+    @Operation(summary = "修复 TimeStore 图片", description = "将已保存的 TimeStore 文章中外部图片下载到本地并更新地址")
+    @PostMapping("/fix-timestore-images")
+    public ApiResponse<Map<String, Object>> fixTimestoreImages() {
+        int fixed = contentService.fixTimestoreImages();
+        return ApiResponse.success(Map.of("fixedCount", fixed));
+    }
+
+    @Operation(summary = "修复 TimeStore 加密文章", description = "扫描所有 TimeStore 文章，如果内容包含\"……\"，则重新拉取并更新文章标题、内容、元数据和图片")
+    @PostMapping("/fix-timestore-encrypted")
+    public ApiResponse<Map<String, Object>> fixTimestoreEncryptedArticles() {
+        int fixed = contentService.fixTimestoreEncryptedArticles();
+        return ApiResponse.success(Map.of("fixedCount", fixed));
     }
 }

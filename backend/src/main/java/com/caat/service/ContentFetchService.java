@@ -28,11 +28,15 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 内容拉取服务
@@ -395,10 +399,30 @@ public class ContentFetchService {
             ? new HashMap<>(platformContent.getMetadata()) : new HashMap<>();
 
         if ("ZSXQ".equalsIgnoreCase(platform.getType())) {
-            mediaUrls = downloadZsxqImagesToLocal(mediaUrls);
+            mediaUrls = downloadImagesToLocal(mediaUrls);
             List<Map<String, String>> downloadedFiles = downloadZsxqFilesToLocal(platform, metadataMap);
             if (!downloadedFiles.isEmpty()) {
                 metadataMap.put("downloaded_file_urls", downloadedFiles);
+            }
+        } else if ("TIMESTORE".equalsIgnoreCase(platform.getType())) {
+            Set<String> urlsToDownload = new LinkedHashSet<>();
+            if (mediaUrls != null) urlsToDownload.addAll(mediaUrls);
+            String body = platformContent.getBody();
+            if (body != null && !body.isEmpty()) {
+                urlsToDownload.addAll(extractImgUrlsFromHtml(body));
+            }
+            Map<String, String> remoteToLocal = downloadImagesToLocalMap(new ArrayList<>(urlsToDownload));
+            if (!remoteToLocal.isEmpty()) {
+                if (mediaUrls != null) {
+                    List<String> newMediaUrls = new ArrayList<>();
+                    for (String u : mediaUrls) {
+                        newMediaUrls.add(remoteToLocal.getOrDefault(u, u));
+                    }
+                    mediaUrls = newMediaUrls;
+                }
+                if (body != null && !body.isEmpty()) {
+                    content.setBody(replaceRemoteImagesInBody(body, remoteToLocal));
+                }
             }
         }
 
@@ -446,30 +470,67 @@ public class ContentFetchService {
     }
     
     /**
-     * 知识星球：将正文中的图片 URL 下载到本地，返回本地 URL 列表（失败则保留原 URL）
+     * 将图片 URL 下载到本地，返回远程 URL -> 本地 URL 映射（失败则保留原 URL）
      */
-    private List<String> downloadZsxqImagesToLocal(List<String> urls) {
-        if (urls == null || urls.isEmpty()) return urls;
-        List<String> local = new ArrayList<>();
+    private Map<String, String> downloadImagesToLocalMap(List<String> urls) {
+        Map<String, String> remoteToLocal = new HashMap<>();
+        if (urls == null || urls.isEmpty()) return remoteToLocal;
         for (String url : urls) {
-            if (url == null || url.isEmpty()) {
-                local.add(url);
-                continue;
-            }
+            if (url == null || url.isEmpty()) continue;
             String u = url.trim();
-            if (!u.startsWith("http://") && !u.startsWith("https://")) {
-                local.add(url);
-                continue;
-            }
+            if (!u.startsWith("http://") && !u.startsWith("https://")) continue;
             try {
                 String localUrl = contentAssetService.downloadImageAndSave(u);
-                local.add(localUrl != null ? localUrl : url);
+                if (localUrl != null) remoteToLocal.put(u, localUrl);
             } catch (Exception e) {
-                log.warn("下载知识星球图片失败，保留原 URL: url={}", u, e);
-                local.add(url);
+                log.warn("下载图片到本地失败，保留原 URL: url={}, error={}", u, e.getMessage());
             }
         }
+        return remoteToLocal;
+    }
+
+    /**
+     * 知识星球：将图片 URL 下载到本地，返回本地 URL 列表（失败则保留原 URL）
+     */
+    private List<String> downloadImagesToLocal(List<String> urls) {
+        if (urls == null || urls.isEmpty()) return urls;
+        Map<String, String> map = downloadImagesToLocalMap(urls);
+        List<String> local = new ArrayList<>();
+        for (String u : urls) {
+            local.add(map.getOrDefault(u, u));
+        }
         return local;
+    }
+
+    private static final Pattern IMG_SRC_PATTERN = Pattern.compile("<img[^>]+src\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
+
+    /** 从 HTML 中提取 img src 的 URL 列表 */
+    private static List<String> extractImgUrlsFromHtml(String html) {
+        List<String> urls = new ArrayList<>();
+        if (html == null || html.isEmpty()) return urls;
+        Matcher m = IMG_SRC_PATTERN.matcher(html);
+        while (m.find()) {
+            String src = m.group(1).trim();
+            if (!src.isEmpty() && (src.startsWith("http://") || src.startsWith("https://"))) {
+                urls.add(src);
+            }
+        }
+        return urls;
+    }
+
+    /**
+     * 将 body 中的远程图片 URL 替换为本地 URL
+     */
+    private String replaceRemoteImagesInBody(String body, Map<String, String> remoteToLocal) {
+        if (body == null || body.isEmpty() || remoteToLocal == null || remoteToLocal.isEmpty()) return body;
+        String result = body;
+        for (Map.Entry<String, String> e : remoteToLocal.entrySet()) {
+            String remote = e.getKey();
+            String local = e.getValue();
+            if (remote == null || local == null) continue;
+            result = result.replace(remote, local);
+        }
+        return result;
     }
 
     /**

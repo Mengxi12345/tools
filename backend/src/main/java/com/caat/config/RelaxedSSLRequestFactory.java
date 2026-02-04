@@ -36,7 +36,7 @@ public class RelaxedSSLRequestFactory extends SimpleClientHttpRequestFactory {
                     }
                 }
             };
-            RELAXED_SSL_CONTEXT = SSLContext.getInstance("TLS");
+            RELAXED_SSL_CONTEXT = SSLContext.getInstance("TLSv1.2");
             RELAXED_SSL_CONTEXT.init(null, trustAll, new java.security.SecureRandom());
         } catch (NoSuchAlgorithmException | KeyManagementException e) {
             throw new RuntimeException("无法创建放宽 SSL 的上下文", e);

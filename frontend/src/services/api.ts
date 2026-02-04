@@ -149,6 +149,11 @@ export const contentApi = {
   /** 按平台→用户→月聚合数量，用于内容管理树形展示（仅数量） */
   getGroupedCounts: () => apiClient.get<ApiResponse<{ total: number; platforms: any[] }>>('/contents/grouped-counts'),
   getById: (id: string) => apiClient.get<ApiResponse<any>>(`/contents/${id}`),
+  /** 获取上一篇和下一篇内容 */
+  getAdjacent: (id: string, sameUserOnly?: boolean) =>
+    apiClient.get<ApiResponse<{ previous: any | null; next: any | null }>>(`/contents/${id}/adjacent`, {
+      params: { sameUserOnly: sameUserOnly ?? false },
+    }),
   update: (id: string, data: any) => apiClient.put<ApiResponse<any>>(`/contents/${id}`, data),
   delete: (id: string) => apiClient.delete<ApiResponse<void>>(`/contents/${id}`),
   /** 按作者删除：删除指定作者（追踪用户）下的全部内容，返回删除条数 */
@@ -171,6 +176,10 @@ export const contentApi = {
     apiClient.get<ApiResponse<any>>('/contents/search/popular', { params }),
   getRecentSearchQueries: (params?: { limit?: number }) =>
     apiClient.get<ApiResponse<any>>('/contents/search/recent', { params }),
+  /** 修复 TimeStore 已保存文章中的外部图片：下载到本地并更新地址 */
+  fixTimestoreImages: () => apiClient.post<ApiResponse<{ fixedCount: number }>>('/contents/fix-timestore-images'),
+  /** 修复 TimeStore 加密文章：重新拉取包含"……"的文章并更新 */
+  fixTimestoreEncrypted: () => apiClient.post<ApiResponse<{ fixedCount: number }>>('/contents/fix-timestore-encrypted'),
 };
 
 // 任务相关API
@@ -278,6 +287,42 @@ export const exportApi = {
     `${API_BASE_URL}/export/csv` + (params?.userId ? `?userId=${params.userId}` : ''),
   getHtmlUrl: (params?: { userId?: string }) =>
     `${API_BASE_URL}/export/html` + (params?.userId ? `?userId=${params.userId}` : ''),
+  /** PDF/Word 同步下载（无进度），需选中用户 */
+  getPdfUrl: (params: { userId: string; sortOrder?: string }) =>
+    `${API_BASE_URL}/export/pdf?userId=${params.userId}&sortOrder=${params.sortOrder ?? 'DESC'}`,
+  getWordUrl: (params: { userId: string; sortOrder?: string }) =>
+    `${API_BASE_URL}/export/word?userId=${params.userId}&sortOrder=${params.sortOrder ?? 'DESC'}`,
+  /** 创建异步导出任务（支持进度与日志，PDF/Word 需 userId、sortOrder） */
+  createAsync: (params: {
+    format: 'JSON' | 'MARKDOWN' | 'CSV' | 'HTML' | 'PDF' | 'WORD';
+    userId?: string;
+    startTime?: string;
+    endTime?: string;
+    sortOrder?: string;
+  }) =>
+    apiClient.post<ApiResponse<any>>('/export/async', null, {
+      params: {
+        format: params.format,
+        userId: params.userId,
+        startTime: params.startTime,
+        endTime: params.endTime,
+        sortOrder: params.sortOrder ?? 'DESC',
+      },
+      timeout: 60000, // 创建任务时使用60秒超时，确保有足够时间完成数据库操作
+    }),
+  /** 获取导出任务详情（含 progress、logMessages） */
+  getTask: (taskId: string) => apiClient.get<ApiResponse<any>>(`/export/tasks/${taskId}`),
+  /** 获取导出任务列表（分页） */
+  getTasks: (params?: { userId?: string; page?: number; size?: number }) => {
+    const queryParams: any = {};
+    if (params?.userId) queryParams.userId = params.userId;
+    if (params?.page !== undefined) queryParams.page = params.page;
+    if (params?.size !== undefined) queryParams.size = params.size;
+    return apiClient.get<ApiResponse<any>>('/export/tasks', { params: queryParams });
+  },
+  /** 下载导出文件 URL（需带 token） */
+  getDownloadUrl: (taskId: string) =>
+    `${API_BASE_URL}/export/tasks/${taskId}/download`,
 };
 
 // 统计API

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Tag, Avatar, Upload } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, ReloadOutlined, UserOutlined, UploadOutlined } from '@ant-design/icons';
-import { platformApi, getApiErrorMessage, getPlatformAvatarSrc } from '../services/api';
+import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, ReloadOutlined, UserOutlined, UploadOutlined, ToolOutlined } from '@ant-design/icons';
+import { platformApi, contentApi, getApiErrorMessage, getPlatformAvatarSrc } from '../services/api';
 import MainLayout from '../components/Layout/MainLayout';
 
 interface Platform {
@@ -18,6 +18,8 @@ interface Platform {
 function Platforms() {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fixingImages, setFixingImages] = useState(false);
+  const [fixingEncrypted, setFixingEncrypted] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null);
   const [form] = Form.useForm();
@@ -69,6 +71,40 @@ function Platforms() {
       }
     } catch (error) {
       message.error(getApiErrorMessage(error, '删除失败'));
+    }
+  };
+
+  const handleFixTimestoreImages = async () => {
+    setFixingImages(true);
+    try {
+      const response: any = await contentApi.fixTimestoreImages();
+      if (response?.code === 200 && response?.data != null) {
+        const fixed = response.data.fixedCount ?? 0;
+        message.success(`修复完成，共更新 ${fixed} 篇文章的图片地址`);
+      } else {
+        message.error(response?.message || '修复失败');
+      }
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '修复失败'));
+    } finally {
+      setFixingImages(false);
+    }
+  };
+
+  const handleFixTimestoreEncrypted = async () => {
+    setFixingEncrypted(true);
+    try {
+      const response: any = await contentApi.fixTimestoreEncrypted();
+      if (response?.code === 200 && response?.data != null) {
+        const fixed = response.data.fixedCount ?? 0;
+        message.success(`修复完成，共更新 ${fixed} 篇加密文章`);
+      } else {
+        message.error(response?.message || '修复失败');
+      }
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '修复失败'));
+    } finally {
+      setFixingEncrypted(false);
     }
   };
 
@@ -216,6 +252,24 @@ function Platforms() {
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0 }}>平台管理</h2>
           <Space>
+            {platforms.some((p) => p.type === 'TIMESTORE') && (
+              <>
+                <Button
+                  icon={<ToolOutlined />}
+                  onClick={handleFixTimestoreImages}
+                  loading={fixingImages}
+                >
+                  修复 TimeStore 图片
+                </Button>
+                <Button
+                  icon={<ToolOutlined />}
+                  onClick={handleFixTimestoreEncrypted}
+                  loading={fixingEncrypted}
+                >
+                  修复 TimeStore 加密文章
+                </Button>
+              </>
+            )}
             <Button icon={<ReloadOutlined />} onClick={loadPlatforms} loading={loading}>
               刷新
             </Button>

@@ -73,4 +73,14 @@ public interface PlatformAdapter {
     default Optional<Map<String, String>> getProfileDetail(String userId, Map<String, Object> config) throws BusinessException {
         return Optional.empty();
     }
+
+    /**
+     * 根据文章 URL 直接拉取单篇文章内容（仅部分平台支持，如 TimeStore）
+     * @param articleUrl 文章详情页 URL（如 https://web.timestore.vip/#/time/pages/timeDetail/index?timeid=102712）
+     * @param config 平台配置
+     * @return 若有则返回 PlatformContent；不支持或失败则 empty
+     */
+    default Optional<PlatformContent> fetchContentByUrl(String articleUrl, Map<String, Object> config) throws BusinessException {
+        return Optional.empty();
+    }
 }

@@ -39,6 +39,8 @@ public class TimeStoreAdapter implements PlatformAdapter {
     private static final String PLATFORM_TYPE = "TIMESTORE";
     /** 真实 API：我的博客列表（api.timestore.vip） */
     private static final String DEFAULT_MYBLOG_PATH = "/timeline/mymblog";
+    /** 单篇文章详情（api.timestore.vip，根据 postId 直接拉取） */
+    private static final String TIMELINE_SHOW_PATH = "/timeline/show";
     /** 用户资料：头像、简介（api.timestore.vip） */
     private static final String PROFILE_DETAIL_PATH = "/profile/detail";
 
@@ -237,6 +239,152 @@ public class TimeStoreAdapter implements PlatformAdapter {
             log.error("获取 TimeStore 内容失败: baseUrl={}", baseUrl, e);
             throw new BusinessException(ErrorCode.PLATFORM_CONNECTION_FAILED, "获取内容失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 根据文章 URL 直接拉取单篇文章内容
+     * URL 格式：https://web.timestore.vip/#/time/pages/timeDetail/index?timeid={contentId}
+     * 使用 /timeline/show?postId={contentId} API 直接拉取，无需 uid
+     */
+    @Override
+    public Optional<PlatformContent> fetchContentByUrl(String articleUrl, Map<String, Object> config) throws BusinessException {
+        return fetchContentByUrl(articleUrl, null, null, config);
+    }
+
+    /**
+     * 根据文章 URL 拉取单篇文章（重载方法）
+     * 优先使用 /timeline/show?postId=xxx 接口；
+     */
+    public Optional<PlatformContent> fetchContentByUrl(String articleUrl, String authorUid, LocalDateTime publishedAt, Map<String, Object> config) throws BusinessException {
+        String contentId = extractTimeidFromUrl(articleUrl);
+        if (contentId == null || contentId.isEmpty()) {
+            log.warn("TimeStore fetchContentByUrl: 无法从 URL 提取 timeid, url={}", articleUrl);
+            return Optional.empty();
+        }
+        String baseUrl = getBaseUrl(config);
+        String token = getMateAuth(config);
+        if (token == null || token.isEmpty()) {
+            throw new BusinessException(ErrorCode.PLATFORM_CONNECTION_FAILED, "TimeStore mate-auth 未配置");
+        }
+        try {
+            // 1. 优先使用 /timeline/show?postId=xxx 接口（正确 API，直接按 id 拉取）
+            Optional<PlatformContent> fromShow = fetchByShowApi(baseUrl, contentId, token);
+            if (fromShow.isPresent()) {
+                return fromShow;
+            }
+            return Optional.empty();
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("TimeStore fetchContentByUrl 异常: timeid={}, error={}", contentId, e.getMessage(), e);
+            return Optional.empty();
+        }
+    }
+
+    /** 使用 /timeline/show?postId=xxx 接口拉取单篇文章 */
+    private Optional<PlatformContent> fetchByShowApi(String baseUrl, String postId, String token) {
+        String query = "postId=" + postId;
+        String url = buildUrl(baseUrl, TIMELINE_SHOW_PATH, query);
+        log.info("TimeStore fetchContentByUrl: 使用 show 接口 postId={}, url={}", postId, url);
+        try {
+            HttpHeaders headers = createHeaders(normalizeMateAuth(token));
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            String bodyStr = response.getBody();
+            if (!response.getStatusCode().is2xxSuccessful() || bodyStr == null || bodyStr.isBlank()) {
+                log.warn("TimeStore fetchByShowApi: 请求失败 postId={}, status={}", postId, response.getStatusCode());
+                return Optional.empty();
+            }
+            String contentType = response.getHeaders().getFirst("Content-Type");
+            if (contentType != null && contentType.toLowerCase().contains("text/html")) {
+                log.warn("TimeStore fetchByShowApi: 返回 HTML 而非 JSON postId={}", postId);
+                return Optional.empty();
+            }
+            if (bodyStr.trim().startsWith("<")) {
+                log.warn("TimeStore fetchByShowApi: 响应体为 HTML postId={}", postId);
+                return Optional.empty();
+            }
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> body = mapper.readValue(bodyStr, Map.class);
+            Object code = body.get("code");
+            Object msg = body.get("msg");
+            int codeVal = (code instanceof Number) ? ((Number) code).intValue() : 0;
+            if (codeVal != 200) {
+                log.warn("TimeStore fetchByShowApi: API 返回非成功 postId={}, code={}, msg={}", postId, code, msg);
+                return Optional.empty();
+            }
+            Object dataObj = body.get("data");
+            if (dataObj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> record = (Map<String, Object>) dataObj;
+                PlatformContent content = mapRecordToPlatformContent(record, "https://web.timestore.vip");
+                log.info("TimeStore fetchByShowApi: 成功拉取文章 postId={}", postId);
+                return Optional.of(content);
+            }
+            log.warn("TimeStore fetchByShowApi: data 非对象 postId={}", postId);
+            return Optional.empty();
+        } catch (Exception e) {
+            log.warn("TimeStore fetchByShowApi 异常: postId={}, error={}", postId, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /** 使用 mymblog 分页接口拉取（回退方案） */
+    private Optional<PlatformContent> fetchByMymblogApi(String baseUrl, String contentId, String authorUid, String token) {
+        String uidFromToken = getUserIdFromMateAuthToken(token);
+        String tokenUid = (uidFromToken != null && !uidFromToken.isEmpty()) ? uidFromToken : "0";
+        String authorUidStr = (authorUid != null && !authorUid.isEmpty()) ? authorUid : null;
+        List<String> uidCandidates = new ArrayList<>();
+        if (authorUidStr != null && !authorUidStr.equals(tokenUid)) {
+            uidCandidates.add(authorUidStr);
+        }
+        uidCandidates.add(tokenUid);
+        if (!"0".equals(tokenUid)) {
+            uidCandidates.add("0");
+        }
+        HttpHeaders headers = createHeaders(normalizeMateAuth(token));
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        for (String uid : uidCandidates) {
+            String query = "current=1&size=10&uid=" + uid + "&id=" + contentId + "&screen=0";
+            String url = buildUrl(baseUrl, DEFAULT_MYBLOG_PATH, query);
+            log.info("TimeStore fetchByMymblogApi: 尝试 postId={}, uid={}", contentId, uid);
+            try {
+                ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+                String bodyStr = response.getBody();
+                if (!response.getStatusCode().is2xxSuccessful() || bodyStr == null || bodyStr.isBlank()) continue;
+                if (bodyStr.trim().startsWith("<")) continue;
+                @SuppressWarnings("unchecked")
+                Map<String, Object> body = mapper.readValue(bodyStr, Map.class);
+                Object dataObj = body.get("data");
+                List<Map<String, Object>> records = extractRecordsList(dataObj, body);
+                if (records != null && !records.isEmpty()) {
+                    for (Map<String, Object> record : records) {
+                        Object idObj = record.get("id");
+                        String recordId = idObj != null ? idObj.toString() : null;
+                        if (contentId.equals(recordId)) {
+                            return Optional.of(mapRecordToPlatformContent(record, "https://web.timestore.vip"));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("TimeStore fetchByMymblogApi: uid={} 失败 {}", uid, e.getMessage());
+            }
+        }
+        log.warn("TimeStore fetchByMymblogApi: 所有 uid 均失败 postId={}", contentId);
+        return Optional.empty();
+    }
+
+    private static String extractTimeidFromUrl(String url) {
+        if (url == null || url.isEmpty()) return null;
+        int idx = url.indexOf("timeid=");
+        if (idx < 0) return null;
+        int start = idx + 7;
+        int end = url.indexOf("&", start);
+        if (end < 0) end = url.length();
+        String s = url.substring(start, end).trim();
+        return s.isEmpty() ? null : s;
     }
 
     /** 刷新内容时打印出参：HTTP 状态、body.code/msg、data.records 条数、body 摘要 */
@@ -466,17 +614,63 @@ public class TimeStoreAdapter implements PlatformAdapter {
             content.setPublishedAt(LocalDateTime.now().minusMinutes(10));
         }
 
-        // img：支持逗号分隔多图，保存到 mediaUrls 供展示与持久化
+        // 图片：如果 extVO 为空，使用顶层 img；否则从 extVO.extLiveVOS[].img 提取，如果没有则回退到 img
         List<String> mediaUrls = new ArrayList<>();
-        Object img = record.get("img");
-        if (img instanceof String && !((String) img).isEmpty()) {
-            for (String s : ((String) img).split(",")) {
-                String u = s.trim();
-                if (!u.isEmpty()) mediaUrls.add(u);
+        Object extVO = record.get("extVO");
+        // 如果 extVO 为空（null 或不存在），直接使用顶层 img
+        if (extVO == null) {
+            Object img = record.get("img");
+            if (img instanceof String && !((String) img).isEmpty()) {
+                for (String s : ((String) img).split(",")) {
+                    String u = s.trim();
+                    if (!u.isEmpty()) mediaUrls.add(u);
+                }
+            } else if (img instanceof List) {
+                for (Object o : (List<?>) img) {
+                    if (o instanceof String && !((String) o).isEmpty()) mediaUrls.add((String) o);
+                }
             }
-        } else if (img instanceof List) {
-            for (Object o : (List<?>) img) {
-                if (o instanceof String && !((String) o).isEmpty()) mediaUrls.add((String) o);
+        } else if (extVO instanceof Map) {
+            // extVO 存在，优先从 extLiveVOS 提取图片
+            @SuppressWarnings("unchecked")
+            Map<String, Object> extVOMap = (Map<String, Object>) extVO;
+            Object extLiveVOS = extVOMap.get("extLiveVOS");
+            if (extLiveVOS instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> liveList = (List<Map<String, Object>>) extLiveVOS;
+                for (Map<String, Object> live : liveList) {
+                    Object imgObj = live.get("img");
+                    if (imgObj instanceof String && !((String) imgObj).isEmpty()) {
+                        mediaUrls.add(((String) imgObj).trim());
+                    }
+                }
+            }
+            // 如果 extLiveVOS 中没有图片，回退到顶层 img 字段
+            if (mediaUrls.isEmpty()) {
+                Object img = record.get("img");
+                if (img instanceof String && !((String) img).isEmpty()) {
+                    for (String s : ((String) img).split(",")) {
+                        String u = s.trim();
+                        if (!u.isEmpty()) mediaUrls.add(u);
+                    }
+                } else if (img instanceof List) {
+                    for (Object o : (List<?>) img) {
+                        if (o instanceof String && !((String) o).isEmpty()) mediaUrls.add((String) o);
+                    }
+                }
+            }
+        } else {
+            // extVO 存在但不是 Map，回退到顶层 img
+            Object img = record.get("img");
+            if (img instanceof String && !((String) img).isEmpty()) {
+                for (String s : ((String) img).split(",")) {
+                    String u = s.trim();
+                    if (!u.isEmpty()) mediaUrls.add(u);
+                }
+            } else if (img instanceof List) {
+                for (Object o : (List<?>) img) {
+                    if (o instanceof String && !((String) o).isEmpty()) mediaUrls.add((String) o);
+                }
             }
         }
         content.setMediaUrls(mediaUrls.isEmpty() ? null : mediaUrls);

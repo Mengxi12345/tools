@@ -3,6 +3,7 @@ package com.caat.service;
 import com.caat.exception.BusinessException;
 import com.caat.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -32,21 +33,45 @@ public class ContentAssetService {
     private static final String IMAGES_SUBDIR = "contents/images";
     private static final String FILES_SUBDIR = "contents/files";
     private static final List<String> IMAGE_EXT = Arrays.asList("png", "jpg", "jpeg", "gif", "webp", "svg");
-    private static final int MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+    private static final int MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20MB，TimeStore 等平台图片可能较大
     private static final int MAX_FILE_BYTES = 50 * 1024 * 1024; // 50MB
     private static final Pattern FILENAME_DISPOSITION = Pattern.compile("filename[*]?=\\s*[\"']?([^\"';\\n]+)[\"']?", Pattern.CASE_INSENSITIVE);
+    private static final String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    private static final int DOWNLOAD_MAX_RETRIES = 3;
+    private static final long DOWNLOAD_RETRY_DELAY_MS = 800;
 
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
 
     private final RestTemplate restTemplate;
+    private final RestTemplate timeStoreRestTemplate;
 
-    public ContentAssetService(RestTemplate restTemplate) {
+    /** TimeStore 图片域名，需使用放宽 SSL 的 RestTemplate */
+    private static final String[] TIMESTORE_IMAGE_HOSTS = {"img.timestore.vip", "timestore.vip", "os-bucket-pm.oss-accelerate.aliyuncs.com"};
+
+    /** img.timestore.vip 失败时尝试 OSS 直连（同一存储，路径可能兼容） */
+    private static String toOssFallbackUrl(String url) {
+        if (url == null || !url.startsWith("https://img.timestore.vip/")) return null;
+        return "https://os-bucket-pm.oss-accelerate.aliyuncs.com/" + url.substring("https://img.timestore.vip/".length());
+    }
+
+    public ContentAssetService(RestTemplate restTemplate,
+                              @Qualifier("timeStoreRestTemplate") RestTemplate timeStoreRestTemplate) {
         this.restTemplate = restTemplate;
+        this.timeStoreRestTemplate = timeStoreRestTemplate;
+    }
+
+    private RestTemplate selectRestTemplate(String url) {
+        if (url == null) return restTemplate;
+        String lower = url.toLowerCase();
+        for (String host : TIMESTORE_IMAGE_HOSTS) {
+            if (lower.contains(host)) return timeStoreRestTemplate;
+        }
+        return restTemplate;
     }
 
     /**
-     * 从 URL 下载图片并保存到 uploads/contents/images/，返回可访问路径。
+     * 从 URL 下载图片并保存到 uploads/contents/images/，返回可访问路径。带重试。
      */
     public String downloadImageAndSave(String imageUrl) {
         if (imageUrl == null || imageUrl.isBlank()) return null;
@@ -54,36 +79,65 @@ public class ContentAssetService {
         if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
             return trimmed;
         }
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setAccept(Arrays.asList(MediaType.IMAGE_PNG, MediaType.IMAGE_JPEG, MediaType.IMAGE_GIF,
-                    MediaType.parseMediaType("image/webp"), MediaType.parseMediaType("image/svg+xml")));
-            ResponseEntity<byte[]> resp = restTemplate.exchange(
-                    URI.create(trimmed),
-                    HttpMethod.GET,
-                    new HttpEntity<>(headers),
-                    byte[].class);
-            if (resp.getBody() == null || resp.getBody().length == 0) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "无法从该 URL 获取图片");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(Arrays.asList(MediaType.IMAGE_PNG, MediaType.IMAGE_JPEG, MediaType.IMAGE_GIF,
+                MediaType.parseMediaType("image/webp"), MediaType.parseMediaType("image/svg+xml")));
+        headers.set("User-Agent", USER_AGENT);
+        Exception lastEx = null;
+        String[] urlsToTry = new String[]{trimmed};
+        String ossFallback = toOssFallbackUrl(trimmed);
+        if (ossFallback != null) urlsToTry = new String[]{trimmed, ossFallback};
+        for (int attempt = 1; attempt <= DOWNLOAD_MAX_RETRIES; attempt++) {
+            for (String urlToUse : urlsToTry) {
+                RestTemplate client = selectRestTemplate(urlToUse);
+                try {
+                    ResponseEntity<byte[]> resp = client.exchange(
+                        URI.create(urlToUse),
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        byte[].class);
+                if (resp.getBody() == null || resp.getBody().length == 0) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, "无法从该 URL 获取图片");
+                }
+                if (resp.getBody().length > MAX_IMAGE_BYTES) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, "图片大小不能超过 20MB");
+                }
+                String ext = extFromContentType(resp.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE));
+                if (ext == null) ext = extFromUrl(trimmed);
+                if (ext == null || !IMAGE_EXT.contains(ext.toLowerCase(Locale.ROOT))) ext = "png";
+                String filename = UUID.randomUUID() + "." + ext;
+                Path dir = Paths.get(uploadDir, IMAGES_SUBDIR).toAbsolutePath().normalize();
+                Path target = dir.resolve(filename);
+                Files.createDirectories(dir);
+                Files.write(target, resp.getBody());
+                if (!urlToUse.equals(trimmed)) {
+                    log.info("下载图片成功（OSS 直连）: 原url={}", trimmed);
+                } else if (attempt > 1) {
+                    log.info("下载图片成功（第 {} 次重试）: url={}", attempt, trimmed);
+                }
+                return "/api/v1/uploads/" + IMAGES_SUBDIR + "/" + filename;
+            } catch (BusinessException e) {
+                throw e;
+            } catch (Exception e) {
+                lastEx = e;
+                if (!urlToUse.equals(trimmed)) {
+                    log.warn("OSS 直连也失败: url={}, error={}", urlToUse, e.getMessage());
+                }
             }
-            if (resp.getBody().length > MAX_IMAGE_BYTES) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "图片大小不能超过 5MB");
             }
-            String ext = extFromContentType(resp.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE));
-            if (ext == null) ext = extFromUrl(trimmed);
-            if (ext == null || !IMAGE_EXT.contains(ext.toLowerCase(Locale.ROOT))) ext = "png";
-            String filename = UUID.randomUUID() + "." + ext;
-            Path dir = Paths.get(uploadDir, IMAGES_SUBDIR).toAbsolutePath().normalize();
-            Path target = dir.resolve(filename);
-            Files.createDirectories(dir);
-            Files.write(target, resp.getBody());
-            return "/api/v1/uploads/" + IMAGES_SUBDIR + "/" + filename;
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.warn("下载内容图片失败: url={}, error={}", trimmed, e.getMessage());
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "下载图片失败：" + e.getMessage());
+            if (attempt < DOWNLOAD_MAX_RETRIES) {
+                log.warn("下载内容图片失败，第 {}/{} 次，将重试: url={}, error={}", attempt, DOWNLOAD_MAX_RETRIES, trimmed, lastEx != null ? lastEx.getMessage() : "");
+                try {
+                    Thread.sleep(DOWNLOAD_RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, "下载被中断");
+                }
+            } else {
+                log.warn("下载内容图片失败（已重试 {} 次）: url={}, error={}", DOWNLOAD_MAX_RETRIES, trimmed, lastEx != null ? lastEx.getMessage() : "");
+            }
         }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "下载图片失败：" + (lastEx != null ? lastEx.getMessage() : "未知错误"));
     }
 
     /**
@@ -99,7 +153,9 @@ public class ContentAssetService {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setAccept(Arrays.asList(MediaType.APPLICATION_OCTET_STREAM, MediaType.ALL));
-            ResponseEntity<byte[]> resp = restTemplate.exchange(
+            headers.set("User-Agent", USER_AGENT);
+            RestTemplate client = selectRestTemplate(trimmed);
+            ResponseEntity<byte[]> resp = client.exchange(
                     URI.create(trimmed),
                     HttpMethod.GET,
                     new HttpEntity<>(headers),
