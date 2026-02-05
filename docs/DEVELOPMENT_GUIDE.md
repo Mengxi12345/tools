@@ -12,7 +12,7 @@
 ## 项目结构
 
 ```
-project/
+tools/
 ├── backend/                 # 后端项目
 │   ├── src/
 │   │   ├── main/
@@ -76,7 +76,13 @@ npm install
 npm run dev
 ```
 
-前端将在 `http://localhost:5173` 启动。
+前端将在 `http://localhost:3000` 启动（开发环境，Vite）。
+
+也可以使用一键启动脚本（后端 + 前端）：
+
+```bash
+./scripts/start-all.sh
+```
 
 ## 代码规范
 

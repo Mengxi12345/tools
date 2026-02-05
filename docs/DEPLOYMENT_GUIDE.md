@@ -17,8 +17,11 @@
 git clone <repository-url>
 cd tools
 
-# 启动所有服务
+# 仅启动核心服务（PostgreSQL + Redis + 后端 + 前端）
 docker compose up -d
+
+# 启动包含 Elasticsearch、RabbitMQ、监控等在内的全量服务
+docker compose -f docker-compose.full.yml up -d
 
 # 查看服务状态
 docker compose ps
@@ -36,8 +39,8 @@ docker compose logs -f backend
 cd backend
 mvn clean package
 
-# 运行 JAR
-java -jar target/content-aggregator-1.0.0-SNAPSHOT.jar
+# 运行 JAR（具体文件名以实际构建结果为准）
+java -jar target/*.jar
 ```
 
 #### 前端部署

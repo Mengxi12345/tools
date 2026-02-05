@@ -182,8 +182,6 @@
 #### 1.2.2 Redis 安装与配置
 - [x] 安装 Redis
   - [x] Docker Compose 配置已更新（docker-compose.full.yml）
-  - [x] 组件检查脚本已创建（scripts/check-components.sh）
-  - [x] 组件测试脚本已创建（scripts/test-all-components.sh）
   - [x] 组件安装文档已创建（docs/COMPONENTS_SETUP_GUIDE.md）
   - **检查项**：✅ Redis 7-alpine 已配置，可通过 Docker Compose 启动
   - **macOS Monterey (Intel) 安装命令**：
@@ -280,10 +278,7 @@
 
 #### 1.2.3 Elasticsearch 安装与配置（可选，MVP 阶段可暂缓）
 - [x] 安装 Elasticsearch
-  - [x] 本地安装脚本已创建（scripts/install-elasticsearch-local.sh）
-  - [x] 一键安装脚本已创建（scripts/install-all-local.sh）
   - [x] Docker Compose 配置已更新（docker-compose.full.yml，可选）
-  - [x] 组件检查脚本已创建（scripts/check-components.sh）
   - [x] 组件安装文档已创建（docs/COMPONENTS_SETUP_GUIDE.md）
   - **检查项**：✅ Elasticsearch 本地安装脚本已创建，需要使用 `brew tap elastic/tap` 后安装
   - **macOS Monterey (Intel) 安装命令**：
@@ -655,7 +650,7 @@
     ```
   - **检查项**：✅ Maven 安装成功，可以正常创建和编译项目（已成功编译后端项目）
 
-- [x] 安装 Gradle（如果使用 Gradle）（scripts/setup-gradle.sh 安装脚本已创建）
+- [x] 安装 Gradle（如果使用 Gradle）
   - **macOS Monterey (Intel) 安装命令**：
     ```bash
     # 使用 Homebrew 安装 Gradle
@@ -880,13 +875,10 @@
 
 #### 1.2.8 消息队列安装与配置（可选，Beta 版本使用）
 - [x] 安装 RabbitMQ（如果使用 RabbitMQ）
-  - [x] 本地安装脚本已创建（scripts/install-rabbitmq-local.sh）
-  - [x] 一键安装脚本已创建（scripts/install-all-local.sh）
   - [x] 全量测试脚本已创建（scripts/test-all-services.sh）
   - [x] Docker Compose 配置已更新（docker-compose.full.yml，可选）
-  - [x] 组件检查脚本已创建（scripts/check-components.sh）
   - [x] 组件安装文档已创建（docs/COMPONENTS_SETUP_GUIDE.md）
-  - **检查项**：✅ 本地安装脚本已创建，可通过 `./scripts/install-all-local.sh` 一键安装所有服务
+  - **检查项**：✅ 可通过 docker-compose 或本地安装方式启动 RabbitMQ，并使用 `./scripts/test-all-services.sh` 做综合测试
   - **macOS Monterey (Intel) 安装命令**：
     ```bash
     # 使用 Homebrew 安装 RabbitMQ
@@ -1960,13 +1952,10 @@
 - ✅ 功能测试和性能测试（集成测试、并发测试、负载测试）
 - ✅ 文档完善（API 文档、开发文档、用户文档、部署文档、备份恢复文档、UX测试指南、组件安装指南、README）
 - ✅ 备份恢复测试（BackupRestoreIntegrationTest、测试脚本、恢复脚本、文档）
-- ✅ 组件安装和验证（组件检查脚本、连接测试脚本、完整 Docker Compose 配置、组件安装文档）
-- ✅ 功能测试和问题修复（功能测试脚本、编译错误修复、API 测试、集成测试）
-- ✅ 本地安装配置（Redis、Elasticsearch、RabbitMQ 本地安装脚本、全量测试脚本、plan.md 更新为本地安装优先）
-- ✅ 功能全量测试（根据 plan.md 进行全量测试，所有服务已启动，所有功能测试通过，问题已修复）
+- ✅ 组件安装和验证（完整 Docker Compose 配置、组件安装文档）
+- ✅ 功能测试和问题修复（编译错误修复、API 测试、集成测试）
+- ✅ 功能全量测试（所有服务已启动，主要功能测试通过，问题已修复）
   - ✅ 修复 StatsController 语法错误，添加 overview 端点
   - ✅ 修复 TrackedUser 懒加载问题
   - ✅ 改进 ContentService 错误处理
   - ✅ 修复 logback-spring.xml 配置错误
-  - ✅ 创建 comprehensive-test.sh 测试脚本
-  - ✅ 创建测试文档和报告

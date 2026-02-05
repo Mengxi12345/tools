@@ -53,6 +53,6 @@ sleep 5
 curl -f http://localhost:8080/actuator/health || echo "健康检查失败，请检查日志"
 
 echo "=== 部署完成 ==="
-echo "前端: http://localhost:5173"
+echo "前端: http://localhost:3000"
 echo "后端: http://localhost:8080"
-echo "API 文档: http://localhost:8080/swagger-ui/index.html"
+echo "API 文档: http://localhost:8080/swagger-ui.html"

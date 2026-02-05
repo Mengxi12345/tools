@@ -7,12 +7,12 @@
 ### 核心组件（必需）
 1. **PostgreSQL 15** - 主数据库
 2. **Redis 7** - 缓存
-3. **Elasticsearch 8** - 全文搜索
-4. **RabbitMQ 3** - 消息队列
-5. **Java 17+** - 后端运行环境
-6. **Node.js 18+** - 前端构建环境
+3. **Java 17+** - 后端运行环境
+4. **Node.js 18+** - 前端构建环境
 
 ### 可选组件
+5. **Elasticsearch 8** - 全文搜索（未配置时相关搜索能力不可用，核心功能仍可运行）
+6. **RabbitMQ 3** - 消息队列（未配置时异步通知等功能不可用，核心功能仍可运行）
 7. **Prometheus** - 监控指标收集
 8. **Grafana** - 监控可视化
 
@@ -37,11 +37,11 @@ docker compose logs -f [service_name]
 ### 验证安装
 
 ```bash
-# 运行组件检查脚本
-./scripts/check-components.sh
+# 使用 Docker Compose 查看组件状态
+docker compose ps
 
-# 运行连接测试脚本
-./scripts/test-all-components.sh
+# 或使用 test-all-services 脚本做综合验证
+./scripts/test-all-services.sh
 ```
 
 ## 手动安装
@@ -162,21 +162,11 @@ docker run --name caat-grafana \
 
 ## 配置验证
 
-### 1. 检查组件状态
+### 1. 检查组件状态与连通性
 
-运行检查脚本：
-```bash
-./scripts/check-components.sh
-```
+可以通过 `docker compose ps` 或 `./scripts/test-all-services.sh` 做一次性综合检查；如需更细粒度排查，可参考下方手动验证命令。
 
-### 2. 测试连接
-
-运行测试脚本：
-```bash
-./scripts/test-all-components.sh
-```
-
-### 3. 手动验证
+### 2. 手动验证
 
 #### PostgreSQL
 ```bash
@@ -298,8 +288,8 @@ curl -u admin:admin http://localhost:15672/api/overview
 ## 下一步
 
 组件安装完成后：
-1. 运行 `./scripts/check-components.sh` 验证所有组件
-2. 启动后端应用：`cd backend && mvn spring-boot:run`
+1. 使用 `docker compose ps` 或 `./scripts/test-all-services.sh` 验证所有组件
+2. 启动后端应用：`cd backend && mvn spring-boot:run`（如不使用 Docker 运行后端）
 3. 启动前端应用：`cd frontend && npm run dev`
 4. 访问应用并测试功能
 
