@@ -1,0 +1,51 @@
+---
+description: CAAT 后端 Java/Spring Boot 编码规范
+globs: backend/src/main/java/**/*.java
+alwaysApply: false
+---
+
+# 后端 Java / Spring Boot 规则
+
+## 控制器（Controller）
+- Controller 只负责：
+  - 参数接收与简单校验。
+  - 调用 Service。
+  - 返回 `ApiResponse`。
+- 不在 Controller 中直接使用 Repository 或封装复杂业务逻辑。
+- 所有对外 API：
+  - 路径统一以 `/api/v1` 开头。
+  - 使用语义化 HTTP 方法（GET 查询、POST 创建/动作、PUT 更新、DELETE 删除）。
+
+## Service 层
+- 一个 Service 聚焦一个领域（如 `ContentService`, `ExportService`, `NotificationService`），避免“上帝 Service”。
+- 对外公开方法控制在**可读范围（<20 个）**，内部复杂逻辑拆分为私有方法：
+  - 示例：拉取 TimeStore 内容：`buildRequestUrl`、`executeRequest`、`parseResponse` 分别独立。
+- 涉及外部平台的 Service 必须：
+  - 明确捕获并转换第三方异常为 `BusinessException`。
+  - 在日志中附带平台类型与关键参数（如 platformType, userId, contentId）。
+
+## TimeStore 专项规则
+- 所有 TimeStore 文章拉取必须走 `TimeStoreAdapter`：
+  - 单篇：优先使用 `/timeline/show?postId=xxx`，必要时再回退到 `/timeline/mymblog`。
+  - 响应为 HTML（`text/html` 或 body 以 `<` 开头）时，视为非 JSON，记录 WARN 日志并返回 empty。
+- 加密文章判断：
+  - 仅检查标题最后若干字符是否包含 `ENCRYPTED_MARKER`（例如 `"......"`），避免误伤中间出现省略号的标题。
+- 图片处理：
+  - 优先从 `extVO.extLiveVOS[].img` 提取图片 URL，若无再回退顶层 `img` 字段（逗号分隔）。
+
+## Repository 与查询
+- Repository 只定义**必要的查询方法**，复杂查询交由 Service 组合调用，或使用 Specification/QueryDSL。
+- 所有分页查询必须接受 `Pageable` 参数，并按创建时间倒序排列。
+- 高频查询字段必须在 Flyway 中添加索引（如 `user_id`, `platform_id`, `created_at`）。
+
+## 异常与返回值
+- 非预期但可恢复的情况（如第三方返回空数据、找不到某篇外部文章）优先返回 `Optional.empty()` 或业务层 `0`，并记录 WARN 日志，而不是直接抛 RuntimeException。
+- 只有确定为系统错误或调用方无法恢复的场景，才抛出 `BusinessException` 并映射为非 2xx HTTP 状态码（通过 GlobalExceptionHandler 统一处理）。
+
+## 日志与调试
+- 使用 `Slf4j` 日志，避免 `System.out.println`。
+- 对于批量操作（如 TimeStore 修复、导出任务），日志形式统一：
+  - `处理 {current}/{total} id=...`。
+  - `完成 {success}/{total}`。
+- 避免在热点路径中创建大量临时对象（如频繁 `new ObjectMapper()`），统一通过 Spring 注入共享实例。
+

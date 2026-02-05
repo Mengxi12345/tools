@@ -1,0 +1,59 @@
+---
+description: CAAT 项目通用开发规范（后端+前端）
+alwaysApply: true
+---
+
+# CAAT 项目通用规则
+
+## 语言与风格
+- 所有对话与文案默认使用简体中文。
+- 代码中日志、异常信息也优先使用简体中文（必要时可夹带英文关键字，便于检索）。
+
+## 错误处理与日志
+- **禁止吞掉异常**：`catch (e) {}` 一律改为记录日志，并在需要时转换为业务异常：
+  - 后端使用 `BusinessException` 和 `ErrorCode`；前端使用 `message.error(getApiErrorMessage(e, ...))`。
+- **外部平台调用（如 TimeStore）必须打关键日志**：
+  - 包括：请求 URL、关键参数、HTTP 状态码、响应 `code/msg`、截断后的 body 预览。
+  - 避免打印完整大 body，通常截断到 2KB 以内。
+
+## API 约定（前后端）
+- 后端所有业务接口统一返回 `ApiResponse<T>`，字段为：`code`, `message`, `data`, `timestamp`。
+- 前端通过 `apiClient` 的 Axios 拦截器统一处理：
+  - **约定：所有 `apiClient` 调用返回的就是 `ApiResponse<T>` 本体，而不是 AxiosResponse**。
+  - 页面逻辑统一按 `res.code === 200` 判断成功，真实数据从 `res.data` 读取。
+  - 新接口必须在 `services/api.ts` 中先声明，再在页面中使用。
+
+## 事务与并发
+- 写操作统一放在 Service 层，使用 `@Transactional` 控制事务边界：
+  - 读操作优先加 `@Transactional(readOnly = true)`。
+  - 涉及多表更新或外部调用的复合操作，必须在同一个 Service 方法内串联，避免在 Controller 中到处写 repository 调用。
+- 多线程/异步任务（如导出进度、TimeStore 修复）：
+  - 需要跨事务更新进度时，使用单独的 Service + `REQUIRES_NEW` 事务（如 `ExportTaskProgressUpdater` 的做法）。
+
+## 日志级别统一
+- **INFO**：业务流程关键节点（任务创建、任务开始/结束、外部平台调用成功等）。
+- **WARN**：可恢复异常、第三方返回业务错误、数据不符合预期但不影响整体运行。
+- **ERROR**：真正的失败场景（如持久化失败、关键外部服务不可用）。
+- 避免在循环中狂打日志；对于批量处理，使用“总数+当前进度”式日志。
+
+## 命名约定
+- 后端：
+  - Service 接口/实现以 `*Service` 结尾，Repository 以 `*Repository` 结尾。
+  - 定时/异步任务以 `*Job` 或 `*Task` 命名。
+  - DTO 以 `*Request` / `*Response` 命名。
+- 前端：
+  - 页面组件放在 `src/pages` 下，以大驼峰命名（如 `Contents.tsx`）。
+  - 复用组件放在 `src/components` 下，名称表达用途而不是样式（如 `MainLayout`, `SearchBar`）。
+
+## 代码组织
+- 避免超大文件：
+  - 前端页面组件 >400 行时，应考虑拆分为子组件或自定义 hook。
+  - 后端 Service >300 行时，优先抽取私有方法或辅助类。
+- 所有与某个平台强绑定的逻辑（如 TimeStore）统一封装在对应 Adapter 和 Service 中，禁止在 Controller 或通用 Service 中写死第三方细节。
+
+## 文档与 README
+- 任何涉及业务功能的改动（包括接口、领域逻辑、异步任务、前端业务页面等），必须同步更新项目文档：
+  - 优先更新根目录 `README.md` 中的功能概述、模块说明或启动方式。
+  - 如为特定子域（如 TimeStore、导出、通知等），可同时更新 `docs/` 目录下对应文档。
+  - 提交代码或创建 PR 前自查：本次业务改动是否已经同步更新相关文档。
+

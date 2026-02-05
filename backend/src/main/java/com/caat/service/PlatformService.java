@@ -112,7 +112,10 @@ public class PlatformService {
             PlatformAdapter adapter = adapterFactory.getAdapter(platform.getType());
             
             // 解析平台配置，并合并 apiBaseUrl 供适配器使用（如 TimeStore）
-            Map<String, Object> config = mergePlatformConfig(platform, parseConfig(platform.getConfig()));
+            Map<String, Object> config = PlatformConfigUtil.mergePlatformConfig(
+                platform,
+                PlatformConfigUtil.parseConfig(objectMapper, platform.getConfig())
+            );
             
             // 调用适配器测试连接
             boolean success = adapter.testConnection(config);
@@ -133,39 +136,6 @@ public class PlatformService {
         }
     }
     
-    /**
-     * 解析平台配置 JSON 字符串为 Map
-     */
-    private Map<String, Object> parseConfig(String configJson) {
-        if (configJson == null || configJson.trim().isEmpty()) {
-            return new HashMap<>();
-        }
-        
-        try {
-            return objectMapper.readValue(configJson, 
-                objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
-        } catch (Exception e) {
-            log.warn("解析平台配置失败，使用空配置: {}", e.getMessage());
-            return new HashMap<>();
-        }
-    }
-    
-    /**
-     * 将平台实体上的 apiBaseUrl 合并到 config，供 TimeStore 等适配器使用
-     */
-    private Map<String, Object> mergePlatformConfig(Platform platform, Map<String, Object> config) {
-        if (config == null) {
-            config = new HashMap<>();
-        } else {
-            config = new HashMap<>(config);
-        }
-        if (platform.getApiBaseUrl() != null && !platform.getApiBaseUrl().isEmpty()
-            && !config.containsKey("apiBaseUrl")) {
-            config.put("apiBaseUrl", platform.getApiBaseUrl());
-        }
-        return config;
-    }
-
     /** 若头像为 http(s) URL 则下载到本地并替换为本地路径 */
     private void resolveAvatarUrl(Platform platform) {
         String url = platform.getAvatarUrl();

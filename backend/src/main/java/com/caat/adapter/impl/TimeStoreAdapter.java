@@ -6,12 +6,12 @@ import com.caat.adapter.model.PlatformContent;
 import com.caat.adapter.model.PlatformUser;
 import com.caat.exception.BusinessException;
 import com.caat.exception.ErrorCode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -45,9 +45,11 @@ public class TimeStoreAdapter implements PlatformAdapter {
     private static final String PROFILE_DETAIL_PATH = "/profile/detail";
 
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
-    public TimeStoreAdapter(RestTemplate restTemplate) {
+    public TimeStoreAdapter(RestTemplate restTemplate, ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -296,17 +298,14 @@ public class TimeStoreAdapter implements PlatformAdapter {
                 return Optional.empty();
             }
             String contentType = response.getHeaders().getFirst("Content-Type");
-            if (contentType != null && contentType.toLowerCase().contains("text/html")) {
+            if (isHtmlResponse(contentType, bodyStr)) {
                 log.warn("TimeStore fetchByShowApi: 返回 HTML 而非 JSON postId={}", postId);
                 return Optional.empty();
             }
-            if (bodyStr.trim().startsWith("<")) {
-                log.warn("TimeStore fetchByShowApi: 响应体为 HTML postId={}", postId);
+            Map<String, Object> body = parseJsonToMap(bodyStr, "show:postId=" + postId);
+            if (body == null) {
                 return Optional.empty();
             }
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> body = mapper.readValue(bodyStr, Map.class);
             Object code = body.get("code");
             Object msg = body.get("msg");
             int codeVal = (code instanceof Number) ? ((Number) code).intValue() : 0;
@@ -345,7 +344,6 @@ public class TimeStoreAdapter implements PlatformAdapter {
         }
         HttpHeaders headers = createHeaders(normalizeMateAuth(token));
         HttpEntity<String> entity = new HttpEntity<>(headers);
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         for (String uid : uidCandidates) {
             String query = "current=1&size=10&uid=" + uid + "&id=" + contentId + "&screen=0";
             String url = buildUrl(baseUrl, DEFAULT_MYBLOG_PATH, query);
@@ -354,9 +352,9 @@ public class TimeStoreAdapter implements PlatformAdapter {
                 ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
                 String bodyStr = response.getBody();
                 if (!response.getStatusCode().is2xxSuccessful() || bodyStr == null || bodyStr.isBlank()) continue;
-                if (bodyStr.trim().startsWith("<")) continue;
-                @SuppressWarnings("unchecked")
-                Map<String, Object> body = mapper.readValue(bodyStr, Map.class);
+                if (isHtmlResponse(response.getHeaders().getFirst("Content-Type"), bodyStr)) continue;
+                Map<String, Object> body = parseJsonToMap(bodyStr, "mymblog:uid=" + uid + ",id=" + contentId);
+                if (body == null) continue;
                 Object dataObj = body.get("data");
                 List<Map<String, Object>> records = extractRecordsList(dataObj, body);
                 if (records != null && !records.isEmpty()) {
@@ -519,7 +517,7 @@ public class TimeStoreAdapter implements PlatformAdapter {
      * TimeStore mymblog 只返回 token 对应用户的博客，必须用此 uid 请求。
      */
     @SuppressWarnings("unchecked")
-    private static String getUserIdFromMateAuthToken(String mateAuth) {
+    private String getUserIdFromMateAuthToken(String mateAuth) {
         if (mateAuth == null || mateAuth.isEmpty()) return null;
         String token = mateAuth.trim();
         if (token.toLowerCase().startsWith("bearer ")) token = token.substring(7).trim();
@@ -528,8 +526,8 @@ public class TimeStoreAdapter implements PlatformAdapter {
         String payloadB64 = token.substring(token.indexOf('.') + 1, secondDot);
         try {
             String payload = new String(Base64.getUrlDecoder().decode(payloadB64), StandardCharsets.UTF_8);
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            Map<String, Object> map = mapper.readValue(payload, Map.class);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = objectMapper.readValue(payload, Map.class);
             Object userId = map != null ? map.get("userId") : null;
             return userId != null ? userId.toString().trim() : null;
         } catch (Exception e) {
@@ -542,6 +540,31 @@ public class TimeStoreAdapter implements PlatformAdapter {
         String v = (String) config.get("mateAuth");
         if (v != null && !v.isEmpty()) return v;
         return (String) config.get("mate-auth");
+    }
+
+    /**
+     * 判断响应是否为 HTML（根据 Content-Type 与内容首字符）
+     */
+    private static boolean isHtmlResponse(String contentType, String bodyStr) {
+        if (contentType != null && contentType.toLowerCase().contains("text/html")) {
+            return true;
+        }
+        if (bodyStr == null) return false;
+        String trimmed = bodyStr.trim();
+        return !trimmed.isEmpty() && trimmed.charAt(0) == '<';
+    }
+
+    /**
+     * 使用共享 ObjectMapper 将 JSON 字符串解析为 Map
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseJsonToMap(String bodyStr, String context) {
+        try {
+            return objectMapper.readValue(bodyStr, Map.class);
+        } catch (Exception e) {
+            log.warn("TimeStore JSON 解析失败: context={}, error={}", context, e.getMessage());
+            return null;
+        }
     }
 
     private static final String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36";

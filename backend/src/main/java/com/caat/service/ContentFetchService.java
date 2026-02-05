@@ -55,7 +55,30 @@ public class ContentFetchService {
     private final NotificationService notificationService;
     private final ContentAssetService contentAssetService;
     private final ZsxqFileService zsxqFileService;
-    
+
+    /**
+     * 平台资产处理策略：用于在保存内容前根据不同平台处理图片、附件等资产。
+     */
+    private interface PlatformAssetProcessor {
+        void process(PlatformContent platformContent,
+                     Platform platform,
+                     TrackedUser user,
+                     Content content,
+                     Map<String, Object> metadataMap);
+    }
+
+    /**
+     * 按平台类型（不区分大小写）注册的资产处理策略。
+     */
+    private final Map<String, PlatformAssetProcessor> platformAssetProcessors = new HashMap<>();
+
+    {
+        // 知识星球：下载图片与附件到本地，并写入元数据
+        platformAssetProcessors.put("ZSXQ", this::processZsxqAssets);
+        // TimeStore：下载正文与媒体中的图片到本地，并替换 body 与 mediaUrls
+        platformAssetProcessors.put("TIMESTORE", this::processTimestoreAssets);
+    }
+
     /** 用于单条保存时开启新事务，避免一条失败导致整批回滚（setter 注入打破循环依赖） */
     private ContentFetchService self;
 
@@ -132,9 +155,9 @@ public class ContentFetchService {
             PlatformAdapter adapter = adapterFactory.getAdapter(user.getPlatform().getType());
             
             // 解析平台配置，并合并平台级 apiBaseUrl 供适配器使用（如 TimeStore）
-            Map<String, Object> config = mergePlatformConfig(
+            Map<String, Object> config = PlatformConfigUtil.mergePlatformConfig(
                 user.getPlatform(),
-                parseConfig(user.getPlatform().getConfig())
+                PlatformConfigUtil.parseConfig(objectMapper, user.getPlatform().getConfig())
             );
             
             int limit = "fast".equalsIgnoreCase(fetchMode) ? 20 : 150; // normal 时单页可到 100~150
@@ -376,16 +399,14 @@ public class ContentFetchService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Content saveContent(PlatformContent platformContent, Platform platform, TrackedUser user) {
-        // 生成内容哈希
+        // 1. 生成内容哈希并做幂等校验
         String hash = generateContentHash(platformContent);
-        
-        // 检查是否已存在
         if (contentRepository.existsByHash(hash)) {
             log.info("[保存排查] 内容已存在，跳过: contentId={}, hash={}", platformContent.getContentId(), hash);
             return contentRepository.findByHash(hash).orElse(null);
         }
-        
-        // 创建内容实体
+
+        // 2. 构建基础 Content 实体（不含平台特定资产与元数据）
         Content content = new Content();
         content.setPlatform(platform);
         content.setUser(user);
@@ -394,50 +415,30 @@ public class ContentFetchService {
         content.setBody(platformContent.getBody());
         content.setUrl(platformContent.getUrl());
         content.setContentType(convertContentType(platformContent.getContentType()));
+
+        // 初始媒体与元数据
         List<String> mediaUrls = platformContent.getMediaUrls();
         Map<String, Object> metadataMap = platformContent.getMetadata() != null
             ? new HashMap<>(platformContent.getMetadata()) : new HashMap<>();
 
-        if ("ZSXQ".equalsIgnoreCase(platform.getType())) {
-            mediaUrls = downloadImagesToLocal(mediaUrls);
-            List<Map<String, String>> downloadedFiles = downloadZsxqFilesToLocal(platform, metadataMap);
-            if (!downloadedFiles.isEmpty()) {
-                metadataMap.put("downloaded_file_urls", downloadedFiles);
-            }
-        } else if ("TIMESTORE".equalsIgnoreCase(platform.getType())) {
-            Set<String> urlsToDownload = new LinkedHashSet<>();
-            if (mediaUrls != null) urlsToDownload.addAll(mediaUrls);
-            String body = platformContent.getBody();
-            if (body != null && !body.isEmpty()) {
-                urlsToDownload.addAll(extractImgUrlsFromHtml(body));
-            }
-            Map<String, String> remoteToLocal = downloadImagesToLocalMap(new ArrayList<>(urlsToDownload));
-            if (!remoteToLocal.isEmpty()) {
-                if (mediaUrls != null) {
-                    List<String> newMediaUrls = new ArrayList<>();
-                    for (String u : mediaUrls) {
-                        newMediaUrls.add(remoteToLocal.getOrDefault(u, u));
-                    }
-                    mediaUrls = newMediaUrls;
-                }
-                if (body != null && !body.isEmpty()) {
-                    content.setBody(replaceRemoteImagesInBody(body, remoteToLocal));
-                }
-            }
+        // 3. 平台特定资产处理（图片下载、附件下载等）
+        applyPlatformAssetProcessor(platformContent, platform, user, content, metadataMap);
+
+        // 如果策略未设置 mediaUrls，则回退到原始平台数据
+        if (content.getMediaUrls() == null) {
+            content.setMediaUrls(mediaUrls != null ? mediaUrls : platformContent.getMediaUrls());
         }
 
-        content.setMediaUrls(mediaUrls != null ? mediaUrls : platformContent.getMediaUrls());
+        // 4. 发布时间与 DB 约束兜底
         LocalDateTime publishedAt = platformContent.getPublishedAt() != null
             ? platformContent.getPublishedAt()
             : LocalDateTime.now();
         content.setPublishedAt(publishedAt);
-
-        // 保存前再次确保 published_at 非空，满足 DB 约束
         if (content.getPublishedAt() == null) {
             content.setPublishedAt(LocalDateTime.now());
         }
-        
-        // 保存元数据为 JSON（含 talk 与 downloaded_file_urls）
+
+        // 5. 保存元数据为 JSON（含 talk 与 downloaded_file_urls）
         try {
             if (!metadataMap.isEmpty()) {
                 content.setMetadata(objectMapper.writeValueAsString(metadataMap));
@@ -445,11 +446,12 @@ public class ContentFetchService {
         } catch (Exception e) {
             log.warn("保存元数据失败", e);
         }
-        
+
+        // 6. 其他通用字段与落库
         content.setHash(hash);
         content.setIsRead(false);
         content.setIsFavorite(false);
-        
+
         Content saved = contentRepository.save(content);
         log.info("[保存排查] 保存内容成功: contentId={}, id={}", platformContent.getContentId(), saved.getId());
         if (log.isDebugEnabled()) {
@@ -460,13 +462,90 @@ public class ContentFetchService {
                     content.getUser() != null ? content.getUser().getId() : null,
                     content.getPlatform() != null ? content.getPlatform().getName() : null);
         }
-        // 触发通知规则（如 QQ 群推送）：异步避免阻塞拉取
+
+        // 7. 触发通知规则（如 QQ 群推送）：异步避免阻塞拉取
         try {
             notificationService.checkAndNotify(saved);
         } catch (Exception e) {
             log.warn("通知规则检查或发送失败: contentId={}", saved.getId(), e);
         }
         return saved;
+    }
+
+    /**
+     * 根据平台类型选择并执行资产处理策略。
+     */
+    private void applyPlatformAssetProcessor(PlatformContent platformContent,
+                                             Platform platform,
+                                             TrackedUser user,
+                                             Content content,
+                                             Map<String, Object> metadataMap) {
+        if (platform == null || platform.getType() == null) {
+            return;
+        }
+        String type = platform.getType().toUpperCase();
+        PlatformAssetProcessor processor = platformAssetProcessors.get(type);
+        if (processor == null) {
+            return;
+        }
+        try {
+            processor.process(platformContent, platform, user, content, metadataMap);
+        } catch (Exception e) {
+            log.warn("平台资产处理失败，将使用原始数据: platformType={}, contentId={}, error={}",
+                platform.getType(), platformContent.getContentId(), e.getMessage());
+        }
+    }
+
+    /**
+     * 知识星球：下载图片与附件到本地，并更新 mediaUrls 与元数据。
+     */
+    private void processZsxqAssets(PlatformContent platformContent,
+                                   Platform platform,
+                                   TrackedUser user,
+                                   Content content,
+                                   Map<String, Object> metadataMap) {
+        List<String> mediaUrls = platformContent.getMediaUrls();
+        mediaUrls = downloadImagesToLocal(mediaUrls);
+        content.setMediaUrls(mediaUrls);
+
+        List<Map<String, String>> downloadedFiles = downloadZsxqFilesToLocal(platform, metadataMap);
+        if (!downloadedFiles.isEmpty()) {
+            metadataMap.put("downloaded_file_urls", downloadedFiles);
+        }
+    }
+
+    /**
+     * TimeStore：下载正文与媒体中的图片到本地，并替换 body 与 mediaUrls。
+     */
+    private void processTimestoreAssets(PlatformContent platformContent,
+                                        Platform platform,
+                                        TrackedUser user,
+                                        Content content,
+                                        Map<String, Object> metadataMap) {
+        List<String> mediaUrls = platformContent.getMediaUrls();
+        Set<String> urlsToDownload = new LinkedHashSet<>();
+        if (mediaUrls != null) {
+            urlsToDownload.addAll(mediaUrls);
+        }
+        String body = platformContent.getBody();
+        if (body != null && !body.isEmpty()) {
+            urlsToDownload.addAll(extractImgUrlsFromHtml(body));
+        }
+        Map<String, String> remoteToLocal = downloadImagesToLocalMap(new ArrayList<>(urlsToDownload));
+        if (remoteToLocal.isEmpty()) {
+            return;
+        }
+
+        if (mediaUrls != null) {
+            List<String> newMediaUrls = new ArrayList<>();
+            for (String u : mediaUrls) {
+                newMediaUrls.add(remoteToLocal.getOrDefault(u, u));
+            }
+            content.setMediaUrls(newMediaUrls);
+        }
+        if (body != null && !body.isEmpty()) {
+            content.setBody(replaceRemoteImagesInBody(body, remoteToLocal));
+        }
     }
     
     /**
@@ -543,7 +622,10 @@ public class ContentFetchService {
         if (fileIdsObj == null || !(fileIdsObj instanceof List)) return result;
         List<?> fileIds = (List<?>) fileIdsObj;
         if (fileIds.isEmpty()) return result;
-        Map<String, Object> config = mergePlatformConfig(platform, parseConfig(platform.getConfig()));
+        Map<String, Object> config = PlatformConfigUtil.mergePlatformConfig(
+            platform,
+            PlatformConfigUtil.parseConfig(objectMapper, platform.getConfig())
+        );
         for (Object fidObj : fileIds) {
             String fileId = fidObj != null ? fidObj.toString() : null;
             if (fileId == null || fileId.isEmpty()) continue;
@@ -564,39 +646,6 @@ public class ContentFetchService {
         return result;
     }
 
-    /**
-     * 解析平台配置 JSON 字符串为 Map
-     */
-    private Map<String, Object> parseConfig(String configJson) {
-        if (configJson == null || configJson.trim().isEmpty()) {
-            return new HashMap<>();
-        }
-        
-        try {
-            return objectMapper.readValue(configJson, 
-                objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
-        } catch (Exception e) {
-            log.warn("解析平台配置失败，使用空配置: {}", e.getMessage());
-            return new HashMap<>();
-        }
-    }
-    
-    /**
-     * 将平台实体上的 apiBaseUrl 等合并到 config，供需要自定义 API 地址的适配器使用（如 TimeStore）
-     */
-    private Map<String, Object> mergePlatformConfig(Platform platform, Map<String, Object> config) {
-        if (config == null) {
-            config = new HashMap<>();
-        } else {
-            config = new HashMap<>(config);
-        }
-        if (platform.getApiBaseUrl() != null && !platform.getApiBaseUrl().isEmpty()
-            && !config.containsKey("apiBaseUrl")) {
-            config.put("apiBaseUrl", platform.getApiBaseUrl());
-        }
-        return config;
-    }
-    
     /**
      * 异步拉取早期失败时更新任务状态，便于前端展示失败原因
      */

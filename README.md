@@ -186,4 +186,6 @@ MIT License
 
 ## 贡献
 
-欢迎提交 Issue 与 Pull Request。
+- 开发前建议先阅读仓库根目录下的 `.cursor/rules` 中的项目规范。
+- **任何涉及业务功能的改动**（包括接口、领域逻辑、定时/异步任务、前端业务页面等），完成后必须同步更新本 `README.md` 或 `docs/` 目录下的相关文档，确保文档与实现保持一致。
+- 欢迎提交 Issue 与 Pull Request。

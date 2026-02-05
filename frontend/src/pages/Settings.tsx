@@ -4,55 +4,12 @@ import { CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, DeleteOutline
 import MainLayout from '../components/Layout/MainLayout';
 import { taskApi, userApi, getApiErrorMessage } from '../services/api';
 
-function Settings() {
+function useScheduleStatus() {
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleInterval, setScheduleInterval] = useState<string>('');
   const [loadingSchedule, setLoadingSchedule] = useState(false);
-  const [users, setUsers] = useState<any[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyPage, setHistoryPage] = useState(1);
-  const [historyPageSize, setHistoryPageSize] = useState(10);
-  const [historyTotal, setHistoryTotal] = useState(0);
-  const [fetchHistory, setFetchHistory] = useState<any[]>([]);
-  const [fetchHistoryLoading, setFetchHistoryLoading] = useState(false);
-  const [fetchHistoryPage, setFetchHistoryPage] = useState(1);
-  const [fetchHistoryPageSize, setFetchHistoryPageSize] = useState(10);
-  const [fetchHistoryTotal, setFetchHistoryTotal] = useState(0);
-  const [fetchHistorySelectedRowKeys, setFetchHistorySelectedRowKeys] = useState<string[]>([]);
-  const [historySelectedRowKeys, setHistorySelectedRowKeys] = useState<string[]>([]);
   /** 各用户定时任务当前状态：userId -> isEnabled */
   const [userScheduleStatus, setUserScheduleStatus] = useState<Record<string, boolean>>({});
-
-  const fetchHistoryPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const POLL_INTERVAL_MS = 2000;
-
-  useEffect(() => {
-    loadScheduleStatus();
-    loadUsers();
-    loadHistory();
-    loadFetchHistory();
-  }, []);
-
-  // 当存在 RUNNING 或 PENDING 的刷新任务时，自动轮询以实时更新进度
-  useEffect(() => {
-    const hasActive = (fetchHistory || []).some(
-      (r: any) => r?.status === 'RUNNING' || r?.status === 'PENDING'
-    );
-    if (hasActive && !fetchHistoryPollTimerRef.current) {
-      fetchHistoryPollTimerRef.current = setInterval(() => loadFetchHistory(), POLL_INTERVAL_MS);
-    }
-    if (!hasActive && fetchHistoryPollTimerRef.current) {
-      clearInterval(fetchHistoryPollTimerRef.current);
-      fetchHistoryPollTimerRef.current = null;
-    }
-    return () => {
-      if (fetchHistoryPollTimerRef.current) {
-        clearInterval(fetchHistoryPollTimerRef.current);
-        fetchHistoryPollTimerRef.current = null;
-      }
-    };
-  }, [fetchHistory]);
 
   const loadScheduleStatus = async () => {
     try {
@@ -80,6 +37,37 @@ function Settings() {
     }
   };
 
+  const handleToggleGlobalSchedule = async (enabled: boolean) => {
+    try {
+      setLoadingSchedule(true);
+      const res: any = enabled ? await taskApi.enableSchedule() : await taskApi.disableSchedule();
+      if (res?.code === 200) {
+        setScheduleEnabled(enabled);
+        message.success(enabled ? '全局定时任务已启用' : '全局定时任务已禁用');
+      } else {
+        message.error(res?.message || '操作失败');
+      }
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '操作失败'));
+    } finally {
+      setLoadingSchedule(false);
+    }
+  };
+
+  return {
+    scheduleEnabled,
+    scheduleInterval,
+    loadingSchedule,
+    userScheduleStatus,
+    setUserScheduleStatus,
+    loadScheduleStatus,
+    handleToggleGlobalSchedule,
+  };
+}
+
+function useUsers() {
+  const [users, setUsers] = useState<any[]>([]);
+
   const loadUsers = async () => {
     try {
       const res: any = await userApi.getAll({ page: 0, size: 100 });
@@ -90,6 +78,16 @@ function Settings() {
       message.error(getApiErrorMessage(error, '加载用户列表失败'));
     }
   };
+
+  return { users, loadUsers };
+}
+
+function useScheduleHistory() {
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
+  const [historyTotal, setHistoryTotal] = useState(0);
 
   const loadHistory = async (page?: number, size?: number) => {
     const rawP = Number(page ?? historyPage);
@@ -111,6 +109,26 @@ function Settings() {
       setHistoryLoading(false);
     }
   };
+
+  return {
+    history,
+    historyLoading,
+    historyPage,
+    historyPageSize,
+    historyTotal,
+    loadHistory,
+  };
+}
+
+function useFetchHistory() {
+  const [fetchHistory, setFetchHistory] = useState<any[]>([]);
+  const [fetchHistoryLoading, setFetchHistoryLoading] = useState(false);
+  const [fetchHistoryPage, setFetchHistoryPage] = useState(1);
+  const [fetchHistoryPageSize, setFetchHistoryPageSize] = useState(10);
+  const [fetchHistoryTotal, setFetchHistoryTotal] = useState(0);
+
+  const fetchHistoryPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const POLL_INTERVAL_MS = 2000;
 
   const loadFetchHistory = async (page?: number, size?: number) => {
     const rawP = Number(page ?? fetchHistoryPage);
@@ -134,22 +152,88 @@ function Settings() {
     }
   };
 
-  const handleToggleGlobalSchedule = async (enabled: boolean) => {
-    try {
-      setLoadingSchedule(true);
-      const res: any = enabled ? await taskApi.enableSchedule() : await taskApi.disableSchedule();
-      if (res?.code === 200) {
-        setScheduleEnabled(enabled);
-        message.success(enabled ? '全局定时任务已启用' : '全局定时任务已禁用');
-      } else {
-        message.error(res?.message || '操作失败');
-      }
-    } catch (error) {
-      message.error(getApiErrorMessage(error, '操作失败'));
-    } finally {
-      setLoadingSchedule(false);
+  // 当存在 RUNNING 或 PENDING 的刷新任务时，自动轮询以实时更新进度
+  useEffect(() => {
+    const hasActive = (fetchHistory || []).some(
+      (r: any) => r?.status === 'RUNNING' || r?.status === 'PENDING'
+    );
+    if (hasActive && !fetchHistoryPollTimerRef.current) {
+      fetchHistoryPollTimerRef.current = setInterval(() => loadFetchHistory(), POLL_INTERVAL_MS);
     }
+    if (!hasActive && fetchHistoryPollTimerRef.current) {
+      clearInterval(fetchHistoryPollTimerRef.current);
+      fetchHistoryPollTimerRef.current = null;
+    }
+    return () => {
+      if (fetchHistoryPollTimerRef.current) {
+        clearInterval(fetchHistoryPollTimerRef.current);
+        fetchHistoryPollTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchHistory]);
+
+  return {
+    fetchHistory,
+    fetchHistoryLoading,
+    fetchHistoryPage,
+    fetchHistoryPageSize,
+    fetchHistoryTotal,
+    loadFetchHistory,
+    setFetchHistory,
+    setFetchHistoryPage,
+    setFetchHistoryPageSize,
+    setFetchHistoryTotal,
   };
+}
+
+function Settings() {
+  const {
+    scheduleEnabled,
+    scheduleInterval,
+    loadingSchedule,
+    userScheduleStatus,
+    setUserScheduleStatus,
+    loadScheduleStatus,
+    handleToggleGlobalSchedule,
+  } = useScheduleStatus();
+
+  const { users, loadUsers } = useUsers();
+
+  const {
+    history,
+    historyLoading,
+    historyPage,
+    historyPageSize,
+    historyTotal,
+    loadHistory,
+  } = useScheduleHistory();
+
+  const {
+    fetchHistory,
+    fetchHistoryLoading,
+    fetchHistoryPage,
+    fetchHistoryPageSize,
+    fetchHistoryTotal,
+    loadFetchHistory,
+    setFetchHistory,
+    setFetchHistoryPage,
+    setFetchHistoryPageSize,
+    setFetchHistoryTotal,
+  } = useFetchHistory();
+
+  const [fetchHistorySelectedRowKeys, setFetchHistorySelectedRowKeys] = useState<string[]>([]);
+  const [historySelectedRowKeys, setHistorySelectedRowKeys] = useState<string[]>([]);
+
+  // 首次进入页面时加载当前状态、用户列表和历史记录
+  useEffect(() => {
+    loadScheduleStatus();
+    loadUsers();
+    loadHistory();
+    loadFetchHistory();
+    // 只在首次挂载时执行
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleEnableUserSchedule = async (userId: string, enable: boolean) => {
     try {
@@ -479,110 +563,204 @@ function Settings() {
           />
         </Card>
 
-        <Card
-          title="定时任务执行历史"
-          style={{ marginBottom: 16 }}
-          extra={
-            <Space>
-              <Button icon={<ReloadOutlined />} type="link" onClick={() => loadHistory()}>
-                刷新
-              </Button>
-              <Button
-                type="link"
-                danger
-                disabled={historySelectedRowKeys.length === 0}
-                icon={<DeleteOutlined />}
-                onClick={handleBatchDeleteHistoryRecords}
-              >
-                批量清除{historySelectedRowKeys.length > 0 ? ` (${historySelectedRowKeys.length})` : ''}
-              </Button>
-              <Popconfirm
-                title="确定一键全清所有定时任务执行记录？此操作不可恢复。"
-                onConfirm={handleClearAllScheduleRecords}
-                okText="全清"
-                cancelText="取消"
-                okButtonProps={{ danger: true }}
-              >
-                <Button type="link" danger icon={<DeleteOutlined />}>
-                  一键全清
-                </Button>
-              </Popconfirm>
-            </Space>
-          }
-        >
-          <p style={{ color: '#666', marginBottom: 12 }}>仅展示由定时调度触发的任务（SCHEDULED），按创建时间倒序。</p>
-          <Table
-            dataSource={history}
-            rowKey="id"
-            loading={historyLoading}
-            rowSelection={{
-              selectedRowKeys: historySelectedRowKeys,
-              onChange: (keys) => setHistorySelectedRowKeys(keys as string[]),
-            }}
-            columns={historyColumns}
-            pagination={{
-              current: Math.max(1, Number(historyPage) || 1),
-              pageSize: Math.max(1, Number(historyPageSize) || 10),
-              total: historyTotal,
-              showSizeChanger: true,
-              showTotal: (total) => `共 ${total} 条`,
-              onChange: (page, size) => loadHistory(page, size),
-            }}
-          />
-        </Card>
+        <ScheduleHistoryCard
+          history={history}
+          loading={historyLoading}
+          selectedRowKeys={historySelectedRowKeys}
+          page={historyPage}
+          pageSize={historyPageSize}
+          total={historyTotal}
+          onRefresh={() => loadHistory()}
+          onPageChange={loadHistory}
+          onSelectedRowKeysChange={(keys) => setHistorySelectedRowKeys(keys)}
+          onBatchDelete={handleBatchDeleteHistoryRecords}
+          onClearAll={handleClearAllScheduleRecords}
+          columns={historyColumns}
+        />
 
-        <Card
-          title="刷新任务记录"
-          extra={
-            <Space>
-              <Button icon={<ReloadOutlined />} type="link" onClick={() => loadFetchHistory()}>
-                刷新
-              </Button>
-              <Button
-                type="link"
-                danger
-                disabled={fetchHistorySelectedRowKeys.length === 0}
-                icon={<DeleteOutlined />}
-                onClick={handleBatchDeleteFetchRecords}
-              >
-                批量清除{fetchHistorySelectedRowKeys.length > 0 ? ` (${fetchHistorySelectedRowKeys.length})` : ''}
-              </Button>
-              <Popconfirm
-                title="确定一键全清所有手动刷新记录？此操作不可恢复。"
-                onConfirm={handleClearAllFetchRecords}
-                okText="全清"
-                cancelText="取消"
-                okButtonProps={{ danger: true }}
-              >
-                <Button type="link" danger icon={<DeleteOutlined />}>
-                  一键全清
-                </Button>
-              </Popconfirm>
-            </Space>
-          }
-        >
-          <p style={{ color: '#666', marginBottom: 12 }}>仅展示「用户管理」中点击「刷新内容」产生的手动任务，按创建时间倒序。</p>
-          <Table
-            dataSource={fetchHistory}
-            rowKey="id"
-            loading={fetchHistoryLoading}
-            rowSelection={{
-              selectedRowKeys: fetchHistorySelectedRowKeys,
-              onChange: (keys) => setFetchHistorySelectedRowKeys(keys as string[]),
-            }}
-            columns={fetchHistoryColumns}
-            pagination={{
-              current: Math.max(1, Number(fetchHistoryPage) || 1),
-              pageSize: Math.max(1, Number(fetchHistoryPageSize) || 10),
-              total: fetchHistoryTotal,
-              showSizeChanger: true,
-              showTotal: (total) => `共 ${total} 条`,
-              onChange: (page, size) => loadFetchHistory(page, size),
-            }}
-          />
-        </Card>
+        <FetchHistoryCard
+          history={fetchHistory}
+          loading={fetchHistoryLoading}
+          selectedRowKeys={fetchHistorySelectedRowKeys}
+          page={fetchHistoryPage}
+          pageSize={fetchHistoryPageSize}
+          total={fetchHistoryTotal}
+          onRefresh={() => loadFetchHistory()}
+          onPageChange={loadFetchHistory}
+          onSelectedRowKeysChange={(keys) => setFetchHistorySelectedRowKeys(keys)}
+          onBatchDelete={handleBatchDeleteFetchRecords}
+          onClearAll={handleClearAllFetchRecords}
+          columns={fetchHistoryColumns}
+        />
       </div>
     </MainLayout>
+  );
+}
+
+interface ScheduleHistoryCardProps {
+  history: any[];
+  loading: boolean;
+  selectedRowKeys: string[];
+  page: number;
+  pageSize: number;
+  total: number;
+  columns: any[];
+  onRefresh: () => void;
+  onPageChange: (page: number, size?: number) => void;
+  onSelectedRowKeysChange: (keys: string[]) => void;
+  onBatchDelete: () => void;
+  onClearAll: () => void;
+}
+
+function ScheduleHistoryCard({
+  history,
+  loading,
+  selectedRowKeys,
+  page,
+  pageSize,
+  total,
+  columns,
+  onRefresh,
+  onPageChange,
+  onSelectedRowKeysChange,
+  onBatchDelete,
+  onClearAll,
+}: ScheduleHistoryCardProps) {
+  return (
+    <Card
+      title="定时任务执行历史"
+      style={{ marginBottom: 16 }}
+      extra={
+        <Space>
+          <Button icon={<ReloadOutlined />} type="link" onClick={onRefresh}>
+            刷新
+          </Button>
+          <Button
+            type="link"
+            danger
+            disabled={selectedRowKeys.length === 0}
+            icon={<DeleteOutlined />}
+            onClick={onBatchDelete}
+          >
+            批量清除{selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ''}
+          </Button>
+          <Popconfirm
+            title="确定一键全清所有定时任务执行记录？此操作不可恢复。"
+            onConfirm={onClearAll}
+            okText="全清"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button type="link" danger icon={<DeleteOutlined />}>
+              一键全清
+            </Button>
+          </Popconfirm>
+        </Space>
+      }
+    >
+      <p style={{ color: '#666', marginBottom: 12 }}>仅展示由定时调度触发的任务（SCHEDULED），按创建时间倒序。</p>
+      <Table
+        dataSource={history}
+        rowKey="id"
+        loading={loading}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => onSelectedRowKeysChange(keys as string[]),
+        }}
+        columns={columns}
+        pagination={{
+          current: Math.max(1, Number(page) || 1),
+          pageSize: Math.max(1, Number(pageSize) || 10),
+          total,
+          showSizeChanger: true,
+          showTotal: (t) => `共 ${t} 条`,
+          onChange: (p, s) => onPageChange(p, s),
+        }}
+      />
+    </Card>
+  );
+}
+
+interface FetchHistoryCardProps {
+  history: any[];
+  loading: boolean;
+  selectedRowKeys: string[];
+  page: number;
+  pageSize: number;
+  total: number;
+  columns: any[];
+  onRefresh: () => void;
+  onPageChange: (page: number, size?: number) => void;
+  onSelectedRowKeysChange: (keys: string[]) => void;
+  onBatchDelete: () => void;
+  onClearAll: () => void;
+}
+
+function FetchHistoryCard({
+  history,
+  loading,
+  selectedRowKeys,
+  page,
+  pageSize,
+  total,
+  columns,
+  onRefresh,
+  onPageChange,
+  onSelectedRowKeysChange,
+  onBatchDelete,
+  onClearAll,
+}: FetchHistoryCardProps) {
+  return (
+    <Card
+      title="刷新任务记录"
+      extra={
+        <Space>
+          <Button icon={<ReloadOutlined />} type="link" onClick={onRefresh}>
+            刷新
+          </Button>
+          <Button
+            type="link"
+            danger
+            disabled={selectedRowKeys.length === 0}
+            icon={<DeleteOutlined />}
+            onClick={onBatchDelete}
+          >
+            批量清除{selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ''}
+          </Button>
+          <Popconfirm
+            title="确定一键全清所有手动刷新记录？此操作不可恢复。"
+            onConfirm={onClearAll}
+            okText="全清"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button type="link" danger icon={<DeleteOutlined />}>
+              一键全清
+            </Button>
+          </Popconfirm>
+        </Space>
+      }
+    >
+      <p style={{ color: '#666', marginBottom: 12 }}>仅展示「用户管理」中点击「刷新内容」产生的手动任务，按创建时间倒序。</p>
+      <Table
+        dataSource={history}
+        rowKey="id"
+        loading={loading}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => onSelectedRowKeysChange(keys as string[]),
+        }}
+        columns={columns}
+        pagination={{
+          current: Math.max(1, Number(page) || 1),
+          pageSize: Math.max(1, Number(pageSize) || 10),
+          total,
+          showSizeChanger: true,
+          showTotal: (t) => `共 ${t} 条`,
+          onChange: (p, s) => onPageChange(p, s),
+        }}
+      />
+    </Card>
   );
 }
 
