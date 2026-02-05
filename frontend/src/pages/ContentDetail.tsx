@@ -220,6 +220,54 @@ function ContentDetail() {
               </Descriptions.Item>
             </Descriptions>
 
+            {/* 上一篇/下一篇导航 */}
+            <Card size="small" style={{ backgroundColor: '#fafafa' }}>
+              <Space style={{ width: '100%', justifyContent: 'space-between' }} size="middle">
+                <Button
+                  icon={<LeftOutlined />}
+                  disabled={!adjacentContents.previous}
+                  onClick={() => {
+                    if (adjacentContents.previous?.id) {
+                      navigate(`/contents/${adjacentContents.previous.id}`);
+                    }
+                  }}
+                  loading={loadingAdjacent}
+                  style={{ flex: 1, textAlign: 'left' }}
+                >
+                  {adjacentContents.previous ? (
+                    <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      上一篇：{((adjacentContents.previous.title || '无标题').length > 8 
+                        ? (adjacentContents.previous.title || '无标题').substring(0, 8) + '...'
+                        : (adjacentContents.previous.title || '无标题'))}
+                    </span>
+                  ) : (
+                    '上一篇'
+                  )}
+                </Button>
+                <Button
+                  icon={<RightOutlined />}
+                  disabled={!adjacentContents.next}
+                  onClick={() => {
+                    if (adjacentContents.next?.id) {
+                      navigate(`/contents/${adjacentContents.next.id}`);
+                    }
+                  }}
+                  loading={loadingAdjacent}
+                  style={{ flex: 1, textAlign: 'right' }}
+                >
+                  {adjacentContents.next ? (
+                    <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {((adjacentContents.next.title || '无标题').length > 8 
+                        ? (adjacentContents.next.title || '无标题').substring(0, 8) + '...'
+                        : (adjacentContents.next.title || '无标题'))}：下一篇
+                    </span>
+                  ) : (
+                    '下一篇'
+                  )}
+                </Button>
+              </Space>
+            </Card>
+
             {content.body && (
               <Card title="正文" size="small">
                 <div style={{ whiteSpace: 'pre-wrap' }}>{content.body}</div>
@@ -286,54 +334,6 @@ function ContentDetail() {
                 </Card>
               );
             })()}
-
-            {/* 上一篇/下一篇导航 */}
-            <Card size="small" style={{ marginTop: 16, backgroundColor: '#fafafa' }}>
-              <Space style={{ width: '100%', justifyContent: 'space-between' }} size="middle">
-                <Button
-                  icon={<LeftOutlined />}
-                  disabled={!adjacentContents.previous}
-                  onClick={() => {
-                    if (adjacentContents.previous?.id) {
-                      navigate(`/contents/${adjacentContents.previous.id}`);
-                    }
-                  }}
-                  loading={loadingAdjacent}
-                  style={{ flex: 1, textAlign: 'left' }}
-                >
-                  {adjacentContents.previous ? (
-                    <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      上一篇：{((adjacentContents.previous.title || '无标题').length > 8 
-                        ? (adjacentContents.previous.title || '无标题').substring(0, 8) + '...'
-                        : (adjacentContents.previous.title || '无标题'))}
-                    </span>
-                  ) : (
-                    '上一篇'
-                  )}
-                </Button>
-                <Button
-                  icon={<RightOutlined />}
-                  disabled={!adjacentContents.next}
-                  onClick={() => {
-                    if (adjacentContents.next?.id) {
-                      navigate(`/contents/${adjacentContents.next.id}`);
-                    }
-                  }}
-                  loading={loadingAdjacent}
-                  style={{ flex: 1, textAlign: 'right' }}
-                >
-                  {adjacentContents.next ? (
-                    <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {((adjacentContents.next.title || '无标题').length > 8 
-                        ? (adjacentContents.next.title || '无标题').substring(0, 8) + '...'
-                        : (adjacentContents.next.title || '无标题'))}：下一篇
-                    </span>
-                  ) : (
-                    '下一篇'
-                  )}
-                </Button>
-              </Space>
-            </Card>
 
             {content.metadata && (
               <Card title="元数据（完整文章 JSON）" size="small">

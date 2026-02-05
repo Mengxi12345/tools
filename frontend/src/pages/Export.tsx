@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Select, Button, Space, message, Progress, List, Modal, Table, Tag, Tooltip } from 'antd';
-import { DownloadOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
+import { Card, Select, Button, Space, message, Progress, List, Modal, Table, Tag, Tooltip, Popconfirm } from 'antd';
+import { DownloadOutlined, ReloadOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons';
 import { userApi, getToken, exportApi, getApiErrorMessage } from '../services/api';
 import MainLayout from '../components/Layout/MainLayout';
 
-const POLL_INTERVAL = 2000; // 2秒刷新一次，确保进度及时显示
+const POLL_INTERVAL = 60000; // 60秒刷新一次，降低服务器压力
 const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED'];
 
 function Export() {
@@ -17,6 +17,7 @@ function Export() {
   const [taskList, setTaskList] = useState<any[]>([]);
   const [taskListLoading, setTaskListLoading] = useState(false);
   const [taskListPagination, setTaskListPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 
   const loadUsers = async () => {
     try {
@@ -257,6 +258,24 @@ function Export() {
     setLoading(null); // 关闭弹窗时清除 loading 状态
   };
 
+  const handleDeleteTask = async (taskId: string) => {
+    setDeletingTaskId(taskId);
+    try {
+      await exportApi.deleteTask(taskId);
+      message.success('删除导出任务成功');
+      // 刷新列表
+      loadTaskList(taskListPagination.current, taskListPagination.pageSize);
+      // 如果当前弹窗正在查看这个任务，也一并关闭
+      if (exportTask?.id === taskId) {
+        closeExportModal();
+      }
+    } catch (e) {
+      message.error(getApiErrorMessage(e, '删除导出任务失败'));
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
+
   useEffect(() => () => stopPolling(), []);
 
   const logMessages: string[] = (() => {
@@ -471,7 +490,7 @@ function Export() {
               {
                 title: '操作',
                 key: 'action',
-                width: 150,
+                width: 220,
                 render: (_: any, record: any) => (
                   <Space>
                     <Button
@@ -514,6 +533,23 @@ function Export() {
                         下载
                       </Button>
                     )}
+                    <Popconfirm
+                      title="确认删除该导出任务？"
+                      description="将删除任务记录及对应导出文件，此操作不可恢复。"
+                      onConfirm={() => handleDeleteTask(record.id)}
+                      okText="删除"
+                      cancelText="取消"
+                    >
+                      <Button
+                        type="link"
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        loading={deletingTaskId === record.id}
+                      >
+                        删除
+                      </Button>
+                    </Popconfirm>
                   </Space>
                 ),
               },

@@ -127,24 +127,27 @@ public class ExportService {
         
         try {
             log.info("更新任务状态为RUNNING: taskId={}", taskId);
-            task.setStatus(ExportTask.TaskStatus.RUNNING);
-            task.setStartedAt(LocalDateTime.now());
-            task.setProgress(2); // 设置进度，表示任务已开始执行
+            LocalDateTime startedAt = LocalDateTime.now();
+            List<String> initialLogs = new ArrayList<>();
             try {
-                List<String> initialLogs = new ArrayList<>();
                 if (task.getLogMessages() != null) {
                     try {
                         initialLogs = objectMapper.readValue(task.getLogMessages(), new TypeReference<List<String>>() {});
                     } catch (Exception ignored) {}
                 }
                 initialLogs.add("任务已开始执行...");
-                task.setLogMessages(objectMapper.writeValueAsString(initialLogs));
             } catch (Exception e) {
                 log.warn("设置任务开始日志失败: taskId={}", taskId, e);
             }
-            // 使用 saveAndFlush 确保立即提交到数据库，让前端能立即看到状态更新
-            exportTaskRepository.saveAndFlush(task);
-            log.info("任务状态已更新为RUNNING: taskId={}, progress={}", taskId, task.getProgress());
+            // 使用 REQUIRES_NEW 事务立即提交状态更新，让前端能立即看到
+            String logMessagesJson = null;
+            try {
+                logMessagesJson = objectMapper.writeValueAsString(initialLogs);
+            } catch (Exception e) {
+                log.warn("序列化日志失败: taskId={}", taskId, e);
+            }
+            progressUpdater.updateStatusWithStartedAt(taskId, ExportTask.TaskStatus.RUNNING, startedAt, 2, logMessagesJson);
+            log.info("任务状态已更新为RUNNING: taskId={}, progress=2", taskId);
             
             byte[] data;
             String suggestedFileName = null;
@@ -204,21 +207,34 @@ public class ExportService {
                 suggestedFileName = result.suggestedFileName();
             } else {
                 // JSON/Markdown/CSV/HTML 使用原有逻辑
-                task.setProgress(10);
-                task.setLogMessages(objectMapper.writeValueAsString(List.of("开始加载数据...")));
-                exportTaskRepository.save(task);
+                try {
+                    progressUpdater.updateProgress(taskId, 10, objectMapper.writeValueAsString(List.of("开始加载数据...")));
+                } catch (Exception e) {
+                    log.warn("更新进度失败: taskId={}", taskId, e);
+                }
                 data = exportToFormat(task.getUserId(), task.getExportFormat(), 
                         task.getStartTime(), task.getEndTime());
-                task.setProgress(80);
-                task.setLogMessages(objectMapper.writeValueAsString(List.of("开始加载数据...", "数据加载完成，正在生成文件...")));
-                exportTaskRepository.save(task);
+                try {
+                    progressUpdater.updateProgress(taskId, 80, objectMapper.writeValueAsString(List.of("开始加载数据...", "数据加载完成，正在生成文件...")));
+                } catch (Exception e) {
+                    log.warn("更新进度失败: taskId={}", taskId, e);
+                }
             }
             
             if (data.length == 0 && (task.getExportFormat() == ExportTask.ExportFormat.PDF || task.getExportFormat() == ExportTask.ExportFormat.WORD)) {
-                task.setStatus(ExportTask.TaskStatus.COMPLETED);
-                task.setCompletedAt(LocalDateTime.now());
-                task.setProgress(100);
-                exportTaskRepository.save(task);
+                List<String> finalLogs = new ArrayList<>();
+                try {
+                    if (task.getLogMessages() != null) {
+                        finalLogs = objectMapper.readValue(task.getLogMessages(), new TypeReference<List<String>>() {});
+                    }
+                } catch (Exception ignored) {}
+                finalLogs.add("导出完成（无内容）");
+                try {
+                    progressUpdater.updateCompleted(taskId, ExportTask.TaskStatus.COMPLETED, LocalDateTime.now(), 
+                            null, null, 100, objectMapper.writeValueAsString(finalLogs));
+                } catch (Exception e) {
+                    log.warn("更新完成状态失败: taskId={}", taskId, e);
+                }
                 log.info("导出任务完成(无内容): taskId={}, format={}", taskId, task.getExportFormat());
                 return;
             }
@@ -234,38 +250,46 @@ public class ExportService {
             Path filePath = exportPath.resolve(fileName);
             Files.write(filePath, data);
             
-            // 更新任务状态
-            task.setStatus(ExportTask.TaskStatus.COMPLETED);
-            task.setCompletedAt(LocalDateTime.now());
-            task.setFilePath(filePath.toString());
-            task.setFileSize((long) data.length);
-            task.setProgress(100);
+            // 更新任务状态（使用 REQUIRES_NEW 事务立即提交）
             List<String> finalLogs = new ArrayList<>();
             try {
-                if (task.getLogMessages() != null) {
-                    finalLogs = objectMapper.readValue(task.getLogMessages(), new TypeReference<List<String>>() {});
+                // 重新查询任务以获取最新的日志
+                ExportTask latestTask = exportTaskRepository.findById(taskId).orElse(null);
+                if (latestTask != null && latestTask.getLogMessages() != null) {
+                    try {
+                        finalLogs = objectMapper.readValue(latestTask.getLogMessages(), new TypeReference<List<String>>() {});
+                    } catch (Exception ignored) {}
                 }
             } catch (Exception ignored) {}
             finalLogs.add("导出完成");
-            task.setLogMessages(objectMapper.writeValueAsString(finalLogs));
-            exportTaskRepository.save(task);
+            try {
+                progressUpdater.updateCompleted(taskId, ExportTask.TaskStatus.COMPLETED, LocalDateTime.now(), 
+                        filePath.toString(), (long) data.length, 100, objectMapper.writeValueAsString(finalLogs));
+            } catch (Exception e) {
+                log.warn("更新完成状态失败: taskId={}", taskId, e);
+            }
             
             log.info("导出任务完成: taskId={}, format={}, fileSize={}", 
                     taskId, task.getExportFormat(), data.length);
         } catch (Exception e) {
             log.error("导出任务失败: taskId={}", taskId, e);
-            task.setStatus(ExportTask.TaskStatus.FAILED);
-            task.setCompletedAt(LocalDateTime.now());
-            task.setErrorMessage(e.getMessage());
+            List<String> errLogs = new ArrayList<>();
             try {
-                List<String> errLogs = new ArrayList<>();
-                if (task.getLogMessages() != null) {
-                    errLogs = objectMapper.readValue(task.getLogMessages(), new TypeReference<List<String>>() {});
+                // 重新查询任务以获取最新的日志
+                ExportTask latestTask = exportTaskRepository.findById(taskId).orElse(null);
+                if (latestTask != null && latestTask.getLogMessages() != null) {
+                    try {
+                        errLogs = objectMapper.readValue(latestTask.getLogMessages(), new TypeReference<List<String>>() {});
+                    } catch (Exception ignored) {}
                 }
-                errLogs.add("导出失败: " + e.getMessage());
-                task.setLogMessages(objectMapper.writeValueAsString(errLogs));
             } catch (Exception ignored) {}
-            exportTaskRepository.save(task);
+            errLogs.add("导出失败: " + e.getMessage());
+            try {
+                String errLogJson = objectMapper.writeValueAsString(errLogs);
+                progressUpdater.updateFailed(taskId, LocalDateTime.now(), e.getMessage(), errLogJson);
+            } catch (Exception updateEx) {
+                log.warn("更新失败状态失败: taskId={}", taskId, updateEx);
+            }
         }
     }
     
@@ -300,6 +324,29 @@ public class ExportService {
             throw new RuntimeException("导出任务未完成或文件不存在");
         }
         return Files.readAllBytes(Paths.get(task.getFilePath()));
+    }
+
+    /**
+     * 删除导出任务（包含数据库记录和本地导出文件）
+     */
+    @Transactional
+    public void deleteExportTask(UUID taskId) {
+        ExportTask task = exportTaskRepository.findById(taskId)
+                .orElseThrow(() -> new RuntimeException("导出任务不存在"));
+        String filePath = task.getFilePath();
+        // 先删除数据库记录，保证任务列表中立即不可见
+        exportTaskRepository.delete(task);
+        exportTaskRepository.flush();
+        // 再尝试删除本地文件，失败只记录日志不影响主流程
+        if (filePath != null && !filePath.isBlank()) {
+            try {
+                Files.deleteIfExists(Paths.get(filePath));
+                log.info("已删除导出任务文件: taskId={}, path={}", taskId, filePath);
+            } catch (IOException e) {
+                log.warn("删除导出任务文件失败: taskId={}, path={}, error={}", taskId, filePath, e.getMessage());
+            }
+        }
+        log.info("导出任务已删除: taskId={}", taskId);
     }
     
     /**

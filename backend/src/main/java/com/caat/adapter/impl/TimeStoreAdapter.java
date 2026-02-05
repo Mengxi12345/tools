@@ -269,7 +269,7 @@ public class TimeStoreAdapter implements PlatformAdapter {
             throw new BusinessException(ErrorCode.PLATFORM_CONNECTION_FAILED, "TimeStore mate-auth 未配置");
         }
         try {
-            // 1. 优先使用 /timeline/show?postId=xxx 接口（正确 API，直接按 id 拉取）
+            // 使用 /timeline/show?postId=xxx 接口（正确 API，直接按 id 拉取）
             Optional<PlatformContent> fromShow = fetchByShowApi(baseUrl, contentId, token);
             if (fromShow.isPresent()) {
                 return fromShow;
@@ -327,51 +327,6 @@ public class TimeStoreAdapter implements PlatformAdapter {
             log.warn("TimeStore fetchByShowApi 异常: postId={}, error={}", postId, e.getMessage());
             return Optional.empty();
         }
-    }
-
-    /** 使用 mymblog 分页接口拉取（回退方案） */
-    private Optional<PlatformContent> fetchByMymblogApi(String baseUrl, String contentId, String authorUid, String token) {
-        String uidFromToken = getUserIdFromMateAuthToken(token);
-        String tokenUid = (uidFromToken != null && !uidFromToken.isEmpty()) ? uidFromToken : "0";
-        String authorUidStr = (authorUid != null && !authorUid.isEmpty()) ? authorUid : null;
-        List<String> uidCandidates = new ArrayList<>();
-        if (authorUidStr != null && !authorUidStr.equals(tokenUid)) {
-            uidCandidates.add(authorUidStr);
-        }
-        uidCandidates.add(tokenUid);
-        if (!"0".equals(tokenUid)) {
-            uidCandidates.add("0");
-        }
-        HttpHeaders headers = createHeaders(normalizeMateAuth(token));
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-        for (String uid : uidCandidates) {
-            String query = "current=1&size=10&uid=" + uid + "&id=" + contentId + "&screen=0";
-            String url = buildUrl(baseUrl, DEFAULT_MYBLOG_PATH, query);
-            log.info("TimeStore fetchByMymblogApi: 尝试 postId={}, uid={}", contentId, uid);
-            try {
-                ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-                String bodyStr = response.getBody();
-                if (!response.getStatusCode().is2xxSuccessful() || bodyStr == null || bodyStr.isBlank()) continue;
-                if (isHtmlResponse(response.getHeaders().getFirst("Content-Type"), bodyStr)) continue;
-                Map<String, Object> body = parseJsonToMap(bodyStr, "mymblog:uid=" + uid + ",id=" + contentId);
-                if (body == null) continue;
-                Object dataObj = body.get("data");
-                List<Map<String, Object>> records = extractRecordsList(dataObj, body);
-                if (records != null && !records.isEmpty()) {
-                    for (Map<String, Object> record : records) {
-                        Object idObj = record.get("id");
-                        String recordId = idObj != null ? idObj.toString() : null;
-                        if (contentId.equals(recordId)) {
-                            return Optional.of(mapRecordToPlatformContent(record, "https://web.timestore.vip"));
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.debug("TimeStore fetchByMymblogApi: uid={} 失败 {}", uid, e.getMessage());
-            }
-        }
-        log.warn("TimeStore fetchByMymblogApi: 所有 uid 均失败 postId={}", contentId);
-        return Optional.empty();
     }
 
     private static String extractTimeidFromUrl(String url) {

@@ -114,11 +114,13 @@
 
 - **能力**：
   - 按用户/时间范围导出内容为 JSON、Markdown、CSV、HTML、PDF、Word。
-  - 异步导出任务，支持任务进度、日志、导出文件下载。
+  - 异步导出任务，支持任务进度、日志、导出文件下载与任务删除。
   - 数据库备份 / 增量备份 / 恢复能力（通过单独的 Backup API 与脚本）。
 - **核心接口**：
   - `/export/*`：包括 JSON/Markdown/CSV/HTML/PDF/Word 导出接口以及任务列表查询（详见 API 文档）。
   - `GET /export/tasks`：查询导出任务列表与状态。
+  - `GET /export/tasks/{taskId}`：查询单个导出任务详情。
+  - `DELETE /export/tasks/{taskId}`：删除导出任务记录及其本地导出文件。
   - 备份相关接口：`/backup/database`、`/backup/incremental`、`/backup/list` 等（详见 `BACKUP_RESTORE_GUIDE.md`）。
 - **业务逻辑要点**：
   - 导出任务元数据存储在 `export_tasks` 表，包括格式、范围、进度、日志、文件路径、文件大小等。

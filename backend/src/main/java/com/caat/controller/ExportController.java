@@ -194,6 +194,14 @@ public class ExportController {
                 .contentType(getMediaType(task.getExportFormat()))
                 .body(data);
     }
+
+    @Operation(summary = "删除导出任务", description = "根据任务ID删除导出任务记录及其本地导出文件")
+    @DeleteMapping("/tasks/{taskId}")
+    public ApiResponse<Void> deleteExportTask(@PathVariable UUID taskId) {
+        log.info("收到删除导出任务请求: taskId={}", taskId);
+        exportService.deleteExportTask(taskId);
+        return ApiResponse.success(null);
+    }
     
     /**
      * 构建支持 Unicode 文件名的 Content-Disposition 头。

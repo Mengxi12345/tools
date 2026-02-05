@@ -318,6 +318,8 @@ export const exportApi = {
   /** 下载导出文件 URL（需带 token） */
   getDownloadUrl: (taskId: string) =>
     `${API_BASE_URL}/export/tasks/${taskId}/download`,
+  /** 删除导出任务（同时删除本地导出文件） */
+  deleteTask: (taskId: string) => apiClient.delete<ApiResponse<void>>(`/export/tasks/${taskId}`),
 };
 
 // 统计API
