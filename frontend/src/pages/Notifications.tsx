@@ -182,7 +182,7 @@ function Notifications() {
         };
       }
       if (editingRule) {
-        const res: any = await notificationRuleApi.update(editingRule.id, payload);
+        const res: any = await notificationRuleApi.update(editingRule.id, payload as { name: string; ruleType?: string; config?: Record<string, unknown>; isEnabled?: boolean });
         if (res?.code === 200) {
           message.success('更新成功');
           setModalVisible(false);
@@ -191,7 +191,7 @@ function Notifications() {
           message.error(res?.message || '更新失败');
         }
       } else {
-        const res: any = await notificationRuleApi.create(payload);
+        const res: any = await notificationRuleApi.create(payload as { name: string; ruleType?: string; config?: Record<string, unknown>; isEnabled?: boolean });
         if (res?.code === 200) {
           message.success('创建成功');
           setModalVisible(false);

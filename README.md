@@ -5,12 +5,12 @@
 ## 功能特性
 
 ### 核心功能
-- **多平台支持**：GitHub、知乎、掘金、CSDN、Medium、Reddit、知识星球（ZSXQ）、TimeStore、微博、Twitter 等
+- **多平台支持**：GitHub、知乎、掘金、CSDN、Medium、Reddit、知识星球（ZSXQ）、TimeStore、微博、Twitter 等；TimeStore 支持加密文章修复、图片修复（extVO.extLiveVOS 与 img 字段）
 - **内容管理**：自动拉取、去重、分类、归档；支持按用户/平台/标签查看；内容详情、收藏、树形分组
 - **定时拉取**：Quartz 定时任务（每 10 分钟，可开关）；支持按用户启用/禁用；调度状态 JDBC 持久化，重启不丢失
 - **搜索**：全文搜索（Elasticsearch）、关键词与高级筛选、搜索历史
 - **通知**：QQ 群（go-cqhttp / Mirai）、飞书、邮件、Webhook；支持通知通道配置复用、测试下发（默认语句 / 随机文章）
-- **导出**：JSON、Markdown、CSV、HTML、PDF、Word（PDF/Word 支持按年/月/日组织、图片嵌入、日期排序）
+- **导出**：JSON、Markdown、CSV、HTML、PDF、Word；PDF/Word 支持异步任务、实时进度、任务列表、按年/月/日组织、图片嵌入、日期排序
 
 ### 前端模块
 | 模块 | 路径 | 说明 |
@@ -21,7 +21,7 @@
 | 内容管理 | `/contents` | 内容列表、详情、搜索 |
 | 标签管理 | `/tags` | 标签维护 |
 | 用户分组 | `/groups` | 分组管理 |
-| 数据导出 | `/export` | 按用户导出 JSON/Markdown/CSV/HTML |
+| 数据导出 | `/export` | 按用户导出 JSON/Markdown/CSV/HTML/PDF/Word，PDF/Word 支持异步任务、进度显示、任务列表 |
 | 数据分析 | `/analytics` | 统计图表、词云 |
 | 通知规则 | `/notification-rules` | 规则配置、通道复用、测试下发 |
 | 定时任务 | `/settings` | 全局/用户级开关、任务历史 |
@@ -154,7 +154,7 @@ tools/
 - [用户手册](docs/USER_GUIDE.md)
 - [组件与本地搭建](docs/COMPONENTS_SETUP_GUIDE.md)
 - [备份与恢复](docs/BACKUP_RESTORE_GUIDE.md)
-- [TimeStore 配置](docs/TIMESTORE_SETUP.md)
+- [TimeStore 配置](docs/TIMESTORE_SETUP.md)（含加密文章修复、图片修复，使用 `/timeline/show?postId=xxx` API）
 - [UI 设计规范](docs/UI_DESIGN_SPEC.md)
 - [UX 测试指南](docs/UX_TESTING_GUIDE.md)
 

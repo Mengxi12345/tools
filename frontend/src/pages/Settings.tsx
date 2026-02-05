@@ -61,7 +61,7 @@ function Settings() {
         taskApi.getUsersScheduleStatus(),
       ]);
       // 详情接口含 isEnabled 与 interval，与仪表盘逻辑一致
-      const detailRes = detailResult.status === 'fulfilled' ? detailResult.value : null;
+      const detailRes = detailResult.status === 'fulfilled' ? (detailResult.value as any) : null;
       const data = detailRes?.code === 200 ? detailRes.data : null;
       const enabled = data != null ? (data?.isEnabled ?? data === true) : true;
       setScheduleEnabled(Boolean(enabled));
@@ -70,7 +70,7 @@ function Settings() {
       } else {
         setScheduleInterval('');
       }
-      const usersStatusRes = usersStatusResult.status === 'fulfilled' ? usersStatusResult.value : null;
+      const usersStatusRes = usersStatusResult.status === 'fulfilled' ? (usersStatusResult.value as any) : null;
       if (usersStatusRes?.code === 200 && usersStatusRes.data != null) {
         setUserScheduleStatus(typeof usersStatusRes.data === 'object' ? usersStatusRes.data : {});
       }
@@ -484,7 +484,7 @@ function Settings() {
           style={{ marginBottom: 16 }}
           extra={
             <Space>
-              <Button icon={<ReloadOutlined />} type="link" onClick={loadHistory}>
+              <Button icon={<ReloadOutlined />} type="link" onClick={() => loadHistory()}>
                 刷新
               </Button>
               <Button
@@ -535,7 +535,7 @@ function Settings() {
           title="刷新任务记录"
           extra={
             <Space>
-              <Button icon={<ReloadOutlined />} type="link" onClick={loadFetchHistory}>
+              <Button icon={<ReloadOutlined />} type="link" onClick={() => loadFetchHistory()}>
                 刷新
               </Button>
               <Button

@@ -287,11 +287,6 @@ export const exportApi = {
     `${API_BASE_URL}/export/csv` + (params?.userId ? `?userId=${params.userId}` : ''),
   getHtmlUrl: (params?: { userId?: string }) =>
     `${API_BASE_URL}/export/html` + (params?.userId ? `?userId=${params.userId}` : ''),
-  /** PDF/Word 同步下载（无进度），需选中用户 */
-  getPdfUrl: (params: { userId: string; sortOrder?: string }) =>
-    `${API_BASE_URL}/export/pdf?userId=${params.userId}&sortOrder=${params.sortOrder ?? 'DESC'}`,
-  getWordUrl: (params: { userId: string; sortOrder?: string }) =>
-    `${API_BASE_URL}/export/word?userId=${params.userId}&sortOrder=${params.sortOrder ?? 'DESC'}`,
   /** 创建异步导出任务（支持进度与日志，PDF/Word 需 userId、sortOrder） */
   createAsync: (params: {
     format: 'JSON' | 'MARKDOWN' | 'CSV' | 'HTML' | 'PDF' | 'WORD';
@@ -345,40 +340,3 @@ export const statsApi = {
     apiClient.get<ApiResponse<any>>('/stats/content-growth-trend', { params: { days } }),
 };
 
-// AI功能API
-export const aiApi = {
-  generateSummary: (contentId: string) =>
-    apiClient.get<ApiResponse<string>>(`/ai/content/${contentId}/summary`),
-  analyzeSentiment: (contentId: string) =>
-    apiClient.get<ApiResponse<any>>(`/ai/content/${contentId}/sentiment`),
-  extractKeyInfo: (contentId: string) =>
-    apiClient.get<ApiResponse<any>>(`/ai/content/${contentId}/key-info`),
-  identifyHotTopics: (limit?: number, days?: number) =>
-    apiClient.get<ApiResponse<any>>('/ai/topics/hot', { params: { limit, days } }),
-  trackTopicEvolution: (keyword: string, days?: number) =>
-    apiClient.get<ApiResponse<any>>('/ai/topics/evolution', { params: { keyword, days } }),
-  recommendSimilarContent: (contentId: string, limit?: number) =>
-    apiClient.get<ApiResponse<any>>(`/ai/recommendations/similar/${contentId}`, { params: { limit } }),
-  recommendRelatedAuthors: (userId: string, limit?: number) =>
-    apiClient.get<ApiResponse<any>>(`/ai/recommendations/authors/${userId}`, { params: { limit } }),
-  personalizedRecommendation: (userId: string, limit?: number) =>
-    apiClient.get<ApiResponse<any>>(`/ai/recommendations/personalized/${userId}`, { params: { limit } }),
-};
-
-// 备份API
-export const backupApi = {
-  performDatabaseBackup: () =>
-    apiClient.post<ApiResponse<string>>('/backup/database'),
-  performIncrementalBackup: (since?: string) =>
-    apiClient.post<ApiResponse<string>>('/backup/incremental', null, { params: since ? { since } : {} }),
-  listBackups: () =>
-    apiClient.get<ApiResponse<string[]>>('/backup/list'),
-};
-
-// 安全审计API
-export const securityAuditApi = {
-  getSecurityEvents: (limit?: number) =>
-    apiClient.get<ApiResponse<any>>('/security/audit/events', { params: { limit } }),
-  getSecurityStatistics: () =>
-    apiClient.get<ApiResponse<any>>('/security/audit/statistics'),
-};
