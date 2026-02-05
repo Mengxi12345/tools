@@ -22,6 +22,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -201,6 +202,22 @@ public class ExportController {
         log.info("收到删除导出任务请求: taskId={}", taskId);
         exportService.deleteExportTask(taskId);
         return ApiResponse.success(null);
+    }
+    
+    @Operation(summary = "批量删除导出任务", description = "根据任务ID列表批量删除导出任务记录及其本地导出文件")
+    @PostMapping("/tasks/batch-delete")
+    public ApiResponse<Integer> batchDeleteExportTasks(@RequestBody List<UUID> taskIds) {
+        log.info("收到批量删除导出任务请求: taskIds数量={}", taskIds != null ? taskIds.size() : 0);
+        int deletedCount = exportService.deleteExportTasks(taskIds);
+        return ApiResponse.success(deletedCount);
+    }
+    
+    @Operation(summary = "一键全清导出任务", description = "删除所有导出任务记录及其本地导出文件")
+    @PostMapping("/tasks/delete-all")
+    public ApiResponse<Integer> deleteAllExportTasks() {
+        log.info("收到一键全清导出任务请求");
+        int deletedCount = exportService.deleteAllExportTasks();
+        return ApiResponse.success(deletedCount);
     }
     
     /**

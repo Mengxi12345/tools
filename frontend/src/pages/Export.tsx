@@ -18,6 +18,9 @@ function Export() {
   const [taskListLoading, setTaskListLoading] = useState(false);
   const [taskListPagination, setTaskListPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchDeleting, setBatchDeleting] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const loadUsers = async () => {
     try {
@@ -276,6 +279,54 @@ function Export() {
     }
   };
 
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要删除的任务');
+      return;
+    }
+    setBatchDeleting(true);
+    try {
+      const res: any = await exportApi.batchDeleteTasks(selectedRowKeys as string[]);
+      if (res?.code === 200) {
+        message.success(`成功删除 ${res.data} 个导出任务`);
+        setSelectedRowKeys([]);
+        // 刷新列表
+        loadTaskList(taskListPagination.current, taskListPagination.pageSize);
+        // 如果当前查看的任务被删除，关闭弹窗
+        if (exportTask && selectedRowKeys.includes(exportTask.id)) {
+          closeExportModal();
+        }
+      } else {
+        message.error(res?.message || '批量删除失败');
+      }
+    } catch (e) {
+      message.error(getApiErrorMessage(e, '批量删除导出任务失败'));
+    } finally {
+      setBatchDeleting(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    setDeletingAll(true);
+    try {
+      const res: any = await exportApi.deleteAllTasks();
+      if (res?.code === 200) {
+        message.success(`成功删除所有导出任务（共 ${res.data} 个）`);
+        setSelectedRowKeys([]);
+        // 刷新列表
+        loadTaskList(taskListPagination.current, taskListPagination.pageSize);
+        // 关闭弹窗
+        closeExportModal();
+      } else {
+        message.error(res?.message || '一键全清失败');
+      }
+    } catch (e) {
+      message.error(getApiErrorMessage(e, '一键全清导出任务失败'));
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   useEffect(() => () => stopPolling(), []);
 
   const logMessages: string[] = (() => {
@@ -390,15 +441,53 @@ function Export() {
           title="导出任务列表"
           style={{ marginTop: 16 }}
           extra={
-            <Button icon={<ReloadOutlined />} onClick={() => loadTaskList(taskListPagination.current, taskListPagination.pageSize)}>
-              刷新
-            </Button>
+            <Space>
+              {selectedRowKeys.length > 0 && (
+                <Popconfirm
+                  title={`确认删除选中的 ${selectedRowKeys.length} 个导出任务？`}
+                  description="将删除任务记录及对应导出文件，此操作不可恢复。"
+                  onConfirm={handleBatchDelete}
+                  okText="删除"
+                  cancelText="取消"
+                >
+                  <Button
+                    danger
+                    icon={<DeleteOutlined />}
+                    loading={batchDeleting}
+                  >
+                    批量删除 ({selectedRowKeys.length})
+                  </Button>
+                </Popconfirm>
+              )}
+              <Popconfirm
+                title="确认删除所有导出任务？"
+                description="将删除所有任务记录及对应导出文件，此操作不可恢复。"
+                onConfirm={handleDeleteAll}
+                okText="删除"
+                cancelText="取消"
+              >
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={deletingAll}
+                >
+                  一键全清
+                </Button>
+              </Popconfirm>
+              <Button icon={<ReloadOutlined />} onClick={() => loadTaskList(taskListPagination.current, taskListPagination.pageSize)}>
+                刷新
+              </Button>
+            </Space>
           }
         >
           <Table
             dataSource={taskList}
             loading={taskListLoading}
             rowKey="id"
+            rowSelection={{
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys),
+            }}
             pagination={{
               current: taskListPagination.current,
               pageSize: taskListPagination.pageSize,

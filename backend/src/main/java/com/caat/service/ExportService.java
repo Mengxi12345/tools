@@ -350,6 +350,76 @@ public class ExportService {
     }
     
     /**
+     * 批量删除导出任务（包含数据库记录和本地导出文件）
+     */
+    @Transactional
+    public int deleteExportTasks(List<UUID> taskIds) {
+        if (taskIds == null || taskIds.isEmpty()) {
+            return 0;
+        }
+        int deletedCount = 0;
+        int fileDeletedCount = 0;
+        for (UUID taskId : taskIds) {
+            try {
+                ExportTask task = exportTaskRepository.findById(taskId).orElse(null);
+                if (task == null) {
+                    log.warn("导出任务不存在，跳过: taskId={}", taskId);
+                    continue;
+                }
+                String filePath = task.getFilePath();
+                // 先删除数据库记录
+                exportTaskRepository.delete(task);
+                deletedCount++;
+                // 再尝试删除本地文件
+                if (filePath != null && !filePath.isBlank()) {
+                    try {
+                        Files.deleteIfExists(Paths.get(filePath));
+                        fileDeletedCount++;
+                        log.debug("已删除导出任务文件: taskId={}, path={}", taskId, filePath);
+                    } catch (IOException e) {
+                        log.warn("删除导出任务文件失败: taskId={}, path={}, error={}", taskId, filePath, e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("删除导出任务失败: taskId={}, error={}", taskId, e.getMessage(), e);
+            }
+        }
+        exportTaskRepository.flush();
+        log.info("批量删除导出任务完成，删除记录数={}，删除文件数={}", deletedCount, fileDeletedCount);
+        return deletedCount;
+    }
+    
+    /**
+     * 一键全清所有导出任务（包含数据库记录和本地导出文件）
+     */
+    @Transactional
+    public int deleteAllExportTasks() {
+        List<ExportTask> allTasks = exportTaskRepository.findAll();
+        int totalCount = allTasks.size();
+        int fileDeletedCount = 0;
+        
+        for (ExportTask task : allTasks) {
+            String filePath = task.getFilePath();
+            // 尝试删除本地文件
+            if (filePath != null && !filePath.isBlank()) {
+                try {
+                    Files.deleteIfExists(Paths.get(filePath));
+                    fileDeletedCount++;
+                } catch (IOException e) {
+                    log.warn("删除导出任务文件失败: taskId={}, path={}, error={}", task.getId(), filePath, e.getMessage());
+                }
+            }
+        }
+        
+        // 批量删除数据库记录
+        exportTaskRepository.deleteAll();
+        exportTaskRepository.flush();
+        
+        log.info("一键全清导出任务完成，删除记录数={}，删除文件数={}", totalCount, fileDeletedCount);
+        return totalCount;
+    }
+    
+    /**
      * 生成文件名
      */
     private String generateFileName(ExportTask.ExportFormat format) {

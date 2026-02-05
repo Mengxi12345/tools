@@ -320,6 +320,10 @@ export const exportApi = {
     `${API_BASE_URL}/export/tasks/${taskId}/download`,
   /** 删除导出任务（同时删除本地导出文件） */
   deleteTask: (taskId: string) => apiClient.delete<ApiResponse<void>>(`/export/tasks/${taskId}`),
+  /** 批量删除导出任务 */
+  batchDeleteTasks: (taskIds: string[]) => apiClient.post<ApiResponse<number>>('/export/tasks/batch-delete', taskIds),
+  /** 一键全清所有导出任务 */
+  deleteAllTasks: () => apiClient.post<ApiResponse<number>>('/export/tasks/delete-all'),
 };
 
 // 统计API
