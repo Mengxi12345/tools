@@ -149,6 +149,7 @@ tools/
 ## 文档
 
 - [API 文档](docs/API_DOCUMENTATION.md)
+- [对外能力与业务逻辑总览](docs/API_CAPABILITIES_OVERVIEW.md)
 - [开发指南](docs/DEVELOPMENT_GUIDE.md)
 - [部署指南](docs/DEPLOYMENT_GUIDE.md)
 - [用户手册](docs/USER_GUIDE.md)
@@ -157,6 +158,39 @@ tools/
 - [TimeStore 配置](docs/TIMESTORE_SETUP.md)（含加密文章修复、图片修复，使用 `/timeline/show?postId=xxx` API）
 - [UI 设计规范](docs/UI_DESIGN_SPEC.md)
 - [UX 测试指南](docs/UX_TESTING_GUIDE.md)
+
+## 数据表与组件总览
+
+- **核心业务表（PostgreSQL）**：
+  - `platforms`：平台配置（API Token、配置 JSON 等）。
+  - `tracked_users` / `tracked_user_tags`：被追踪的作者及其标签。
+  - `contents` / `content_media_urls` / `content_tags`：聚合后的内容主体、图片链接和标签关联。
+  - `tags`：全局标签字典，用于内容和用户打标。
+  - `user_groups`：用户分组配置，用于在前端「用户分组」页管理分组。
+  - `fetch_tasks`：内容拉取任务（手动刷新 / 定时任务）的执行记录与状态。
+  - `schedule_configs` / `user_schedules`：全局和按用户的定时拉取开关、Cron 等调度配置。
+- **导出与搜索相关表**：
+  - `export_tasks`：导出任务队列表，记录导出范围、格式、进度、日志及生成的文件路径。
+  - `search_history`：搜索历史与热门搜索统计数据。
+- **通知与归档相关表**：
+  - `notification_rules`：通知规则配置（匹配条件、触发渠道、免打扰时段等）。
+  - `notification_channel_configs`：通知通道复用配置（QQ 机器人、飞书 Webhook、邮件等）。
+  - `notifications`：通知发送历史与已读状态。
+  - `archive_rules`：内容归档规则（按时间、作者、平台、关键词、标签等）。
+- **用户与权限相关表**：
+  - `sys_users`：系统登录用户（用户名、密码哈希等）。
+  - `roles` / `role_permissions` / `user_roles`：RBAC 角色与权限映射。
+- **调度与系统表**：
+  - `QRTZ_*`（多张表）：Quartz 定时任务元数据与执行状态（通过 `spring.quartz` 使用 JDBC 存储）。
+- **缓存（Redis）**：
+  - 用于加速平台配置、用户列表、标签、统计等热点数据访问，典型 key 前缀包括：`platforms:*`、`users:*`、`tags:*`、`stats:*` 等；TTL 根据业务场景在 `CacheConfig` 中统一配置。
+- **外部组件与作用**：
+  - **PostgreSQL 15**：主业务数据库，存储上述所有业务表与 Quartz 表。
+  - **Redis 7**：缓存平台配置、用户、统计等热点数据，减轻数据库压力。
+  - **Elasticsearch 8（可选）**：全文搜索与高级搜索能力（正则搜索、复杂过滤）；未启用时回退到数据库搜索。
+  - **RabbitMQ 3（可选）**：异步通知、消息队列相关功能的基础设施（未启用时核心功能不受影响）。
+  - **Quartz**：定时拉取、定时任务调度（任务定义在 Java 代码中，状态持久化在 PostgreSQL）。
+  - **Prometheus + Grafana（可选）**：监控指标采集与可视化；配置位于 `monitoring/` 目录。
 
 ## 开发
 
