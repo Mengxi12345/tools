@@ -25,5 +25,4 @@ public class UserCreateRequest {
     private String avatarUrl;
     private UUID groupId;
     private List<String> tags;
-    private Integer priority = 0;
 }

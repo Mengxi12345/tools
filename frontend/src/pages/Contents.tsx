@@ -75,13 +75,16 @@ function getInitialContentsListState(): {
     const s = sessionStorage.getItem(CONTENTS_LIST_STATE_KEY);
     if (s) {
       const j = JSON.parse(s);
+      // 清除搜索状态，保留其他状态（viewMode、pagination、platformId、userId）
+      const savedFilters = typeof j.filters === 'object' && j.filters ? j.filters : {};
+      const { search, ...otherFilters } = savedFilters; // 移除 search 字段
       return {
         viewMode: (j.viewMode === 'table' ? 'table' : 'timeline') as ViewMode,
         pagination: typeof j.pagination === 'object' && j.pagination
           ? { current: Number(j.pagination.current) || 1, pageSize: Number(j.pagination.pageSize) || 50, total: Number(j.pagination.total) || 0 }
           : { current: 1, pageSize: 50, total: 0 },
-        filters: typeof j.filters === 'object' && j.filters ? j.filters : {},
-        searchKeyword: typeof j.searchKeyword === 'string' ? j.searchKeyword : '',
+        filters: otherFilters, // 不包含 search
+        searchKeyword: '', // 清除搜索关键字
       };
     }
   } catch (_) {}
@@ -144,7 +147,11 @@ function Contents() {
   }, []);
 
   useEffect(() => {
-    if (viewMode === 'timeline') {
+    // 搜索时强制使用表格视图
+    if (filters.search) {
+      const pageSize = pagination.pageSize === timelinePageSize ? 20 : pagination.pageSize;
+      loadContents(pagination.current, pageSize);
+    } else if (viewMode === 'timeline') {
       loadGroupedCounts();
     } else {
       const pageSize = pagination.pageSize === timelinePageSize ? 20 : pagination.pageSize;
@@ -258,15 +265,37 @@ function Contents() {
 
       const response: any = await contentApi.getAll(params);
       if (response.code === 200) {
+        // Spring Data Page 对象序列化后，数据在 content 字段中
         const data = response.data?.content || [];
+        const total = response.data?.totalElements ?? 0;
+        
+        // 调试日志
+        if (filters.search) {
+          console.log('搜索请求参数:', params);
+          console.log('搜索结果:', { 
+            code: response.code, 
+            dataLength: data.length, 
+            total, 
+            dataStructure: Object.keys(response.data || {}) 
+          });
+        }
+        
         setContents(data);
         setPagination({
           current: page,
           pageSize: size,
-          total: response.data?.totalElements || 0,
+          total: total,
         });
+        
+        // 如果搜索但没有结果，给出提示
+        if (filters.search && data.length === 0 && total === 0) {
+          message.info(`未找到包含"${filters.search}"的内容`);
+        }
+      } else {
+        message.error(response.message || '加载内容列表失败');
       }
     } catch (error) {
+      console.error('加载内容列表失败:', error);
       message.error(getApiErrorMessage(error, '加载内容列表失败'));
     } finally {
       setLoading(false);
@@ -285,6 +314,18 @@ function Contents() {
     setFilters({ ...filters, search: value });
     if (viewMode === 'timeline') loadGroupedCounts();
     else loadContents(1, pagination.pageSize);
+  };
+
+  const handleRefresh = () => {
+    // 清除搜索条件，重置为默认页面
+    setSearchKeyword('');
+    setFilters({ platformId: filters.platformId, userId: filters.userId }); // 保留平台和用户筛选，清除搜索
+    setPagination({ current: 1, pageSize: pagination.pageSize, total: 0 });
+    if (viewMode === 'timeline') {
+      loadGroupedCounts();
+    } else {
+      loadContents(1, pagination.pageSize);
+    }
   };
 
   const handleAdvancedSearch = async (params: AdvancedSearchParams) => {
@@ -605,19 +646,21 @@ function Contents() {
             <p className="contents-page__subtitle">按平台、用户、年份浏览，或使用表格筛选与搜索</p>
         </div>
           <Space wrap size="middle">
-            <Segmented
-              value={viewMode}
-              onChange={(v) => setViewMode(v as ViewMode)}
-              options={[
-                { label: <Space size={6}><CalendarOutlined />按平台 · 用户 · 年份</Space>, value: 'timeline' },
-                { label: <Space size={6}><AppstoreOutlined />表格</Space>, value: 'table' },
-              ]}
-              className="contents-page__view-switch"
-            />
+            {!filters.search && (
+              <Segmented
+                value={viewMode}
+                onChange={(v) => setViewMode(v as ViewMode)}
+                options={[
+                  { label: <Space size={6}><CalendarOutlined />按平台 · 用户 · 年份</Space>, value: 'timeline' },
+                  { label: <Space size={6}><AppstoreOutlined />表格</Space>, value: 'table' },
+                ]}
+                className="contents-page__view-switch"
+              />
+            )}
             <Button
               type="primary"
               icon={<ReloadOutlined />}
-              onClick={() => (viewMode === 'timeline' ? loadContents(1, timelinePageSize) : loadContents(pagination.current, pagination.pageSize))}
+              onClick={handleRefresh}
               loading={loading}
               className="contents-page__refresh-btn"
             >
@@ -626,47 +669,62 @@ function Contents() {
           </Space>
         </header>
 
-        <Card className="contents-page__filter-card" bordered={false}>
-          <Space direction="vertical" style={{ width: '100%' }} size="middle">
-            <Space wrap style={{ width: '100%' }} size="middle">
+        {!filters.search && (
+          <Card className="contents-page__filter-card" bordered={false}>
+            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+              <Space wrap style={{ width: '100%' }} size="middle">
+                <div className="contents-page__search-wrap">
+                  <SearchBar onSearch={handleSearch} placeholder="搜索关键字（匹配标题和正文内容）" showHistory={true} />
+                </div>
+                <Button icon={<FilterOutlined />} onClick={() => setAdvancedSearchVisible(true)} className="contents-page__filter-btn">
+                  高级搜索
+                </Button>
+                <Button danger icon={<DeleteOutlined />} onClick={openDeleteByAuthorModal}>
+                  删除指定作者文章
+                </Button>
+              </Space>
+              <Space wrap size="middle">
+                <Select
+                  placeholder="按平台"
+                  allowClear
+                  className="contents-page__select"
+                  style={{ width: 180 }}
+                  value={filters.platformId ?? undefined}
+                  onChange={(value) => handleFilterChange('platformId', value)}
+                >
+                  {platforms.map((p) => (
+                    <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>
+                  ))}
+                </Select>
+                <Select
+                  placeholder="按作者"
+                  allowClear
+                  className="contents-page__select"
+                  style={{ width: 180 }}
+                  value={filters.userId ?? undefined}
+                  onChange={(value) => handleFilterChange('userId', value)}
+                >
+                  {users.map((u) => (
+                    <Select.Option key={u.id} value={u.id}>{u.username}</Select.Option>
+                  ))}
+                </Select>
+              </Space>
+            </Space>
+          </Card>
+        )}
+        
+        {filters.search && (
+          <Card className="contents-page__filter-card" bordered={false}>
+            <Space wrap style={{ width: '100%' }} size="middle" justify="space-between">
               <div className="contents-page__search-wrap">
-                <SearchBar onSearch={handleSearch} placeholder="搜索标题或作者" showHistory={true} />
+                <SearchBar onSearch={handleSearch} placeholder="搜索关键字（匹配标题和正文内容）" showHistory={true} />
               </div>
-              <Button icon={<FilterOutlined />} onClick={() => setAdvancedSearchVisible(true)} className="contents-page__filter-btn">
-                高级搜索
-              </Button>
-              <Button danger icon={<DeleteOutlined />} onClick={openDeleteByAuthorModal}>
-                删除指定作者文章
+              <Button onClick={() => handleSearch('')} type="text">
+                清除搜索
               </Button>
             </Space>
-            <Space wrap size="middle">
-              <Select
-                placeholder="按平台"
-                allowClear
-                className="contents-page__select"
-                style={{ width: 180 }}
-                value={filters.platformId ?? undefined}
-                onChange={(value) => handleFilterChange('platformId', value)}
-              >
-                {platforms.map((p) => (
-                  <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>
-                ))}
-              </Select>
-              <Select
-                placeholder="按作者"
-                allowClear
-                className="contents-page__select"
-                style={{ width: 180 }}
-                value={filters.userId ?? undefined}
-                onChange={(value) => handleFilterChange('userId', value)}
-              >
-                {users.map((u) => (
-                  <Select.Option key={u.id} value={u.id}>{u.username}</Select.Option>
-                ))}
-              </Select>
-            </Space>
-          </Space>
-        </Card>
+          </Card>
+        )}
 
         <AdvancedSearch visible={advancedSearchVisible} onCancel={() => setAdvancedSearchVisible(false)} onSearch={handleAdvancedSearch} />
 
@@ -785,7 +843,45 @@ function Contents() {
           )}
         </Modal>
 
-        {viewMode === 'timeline' ? (
+        {filters.search ? (
+          // 搜索时只显示表格视图
+          <Card className="contents-table-card" bordered={false}>
+            {contents.length === 0 && !loading ? (
+              <div className="contents-empty contents-empty--table">
+                <div className="contents-empty__icon">
+                  <FileTextOutlined />
+                </div>
+                <p className="contents-empty__title">
+                  未找到包含"{filters.search}"的内容
+                </p>
+                <p className="contents-empty__desc">
+                  请尝试其他关键字或调整筛选条件
+                </p>
+              </div>
+            ) : (
+              <Table
+                className="contents-table"
+                columns={tableColumns}
+                dataSource={contents}
+                rowKey="id"
+                loading={loading}
+                size="middle"
+                bordered={false}
+                rowClassName={(_, index) => (index % 2 === 0 ? 'contents-table-row-even' : 'contents-table-row-odd')}
+                pagination={{
+                  current: pagination.current,
+                  pageSize: pagination.pageSize,
+                  total: pagination.total,
+                  showSizeChanger: true,
+                  showTotal: (total) => `共 ${total} 条`,
+                  onChange: (page, size) => loadContents(page, size ?? pagination.pageSize),
+                  className: 'contents-table-pagination',
+                }}
+                scroll={{ x: 1100 }}
+              />
+            )}
+          </Card>
+        ) : viewMode === 'timeline' ? (
           <div className="contents-timeline">
             {loading ? (
               <Card className="contents-timeline-loading" loading />
@@ -917,8 +1013,12 @@ function Contents() {
                 <div className="contents-empty__icon">
                   <FileTextOutlined />
                 </div>
-                <p className="contents-empty__title">暂无内容</p>
-                <p className="contents-empty__desc">可调整筛选或点击刷新</p>
+                <p className="contents-empty__title">
+                  {filters.search ? `未找到包含"${filters.search}"的内容` : '暂无内容'}
+                </p>
+                <p className="contents-empty__desc">
+                  {filters.search ? '请尝试其他关键字或调整筛选条件' : '可调整筛选或点击刷新'}
+                </p>
               </div>
             ) : (
         <Table
@@ -936,8 +1036,8 @@ function Contents() {
             total: pagination.total,
             showSizeChanger: true,
             showTotal: (total) => `共 ${total} 条`,
-                  onChange: (page, size) => loadContents(page, size ?? pagination.pageSize),
-                  className: 'contents-table-pagination',
+            onChange: (page, size) => loadContents(page, size ?? pagination.pageSize),
+            className: 'contents-table-pagination',
           }}
                 scroll={{ x: 1100 }}
         />

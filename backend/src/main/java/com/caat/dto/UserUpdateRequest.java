@@ -15,6 +15,5 @@ public class UserUpdateRequest {
     private String selfIntroduction;
     private UUID groupId;
     private List<String> tags;
-    private Integer priority;
     private Boolean isActive;
 }

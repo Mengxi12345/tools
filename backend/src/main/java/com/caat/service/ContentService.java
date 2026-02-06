@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -323,7 +324,10 @@ public class ContentService {
             }
             searchType = "ELASTICSEARCH";
         } catch (Exception e) {
-            log.warn("Elasticsearch 搜索失败，回退到数据库搜索: {}", e.getMessage());
+            log.warn("Elasticsearch 搜索失败（可能是日期格式转换问题），回退到数据库搜索: {}", e.getMessage());
+            if (log.isDebugEnabled()) {
+                log.debug("Elasticsearch 搜索异常详情", e);
+            }
             // 回退到数据库搜索
             try {
                 results = contentRepository.searchByKeywordWithPlatformAndUser(trimmedKeyword, pageable);
@@ -347,6 +351,104 @@ public class ContentService {
             log.warn("保存搜索历史失败: query={}", trimmedKeyword, e);
         }
         return results;
+    }
+    
+    /**
+     * 按关键词搜索内容（标题、正文），支持平台和用户过滤
+     * 支持组合搜索：关键字 + 平台ID + 用户ID
+     */
+    @Transactional
+    public Page<Content> searchByKeywordWithFilters(String keyword, UUID platformId, UUID userId, Pageable pageable) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            // 如果没有关键字，使用普通查询
+            if (platformId != null && userId != null) {
+                return contentRepository.findByPlatformIdAndUserIdAndPublishedAtBetween(
+                    platformId, userId, LocalDateTime.of(1970, 1, 1, 0, 0), LocalDateTime.now(), pageable);
+            } else if (userId != null) {
+                return contentRepository.findByUserIdWithPlatformAndUser(userId, pageable);
+            } else if (platformId != null) {
+                return contentRepository.findByPlatformIdWithPlatformAndUser(platformId, pageable);
+            } else {
+                return contentRepository.findAllWithPlatformAndUser(pageable);
+            }
+        }
+        
+        String trimmedKeyword = keyword.trim();
+        Page<Content> results;
+        
+        try {
+            log.info("执行关键字搜索: keyword={}, platformId={}, userId={}, page={}, size={}", 
+                trimmedKeyword, platformId, userId, pageable.getPageNumber(), pageable.getPageSize());
+            
+            // 根据过滤条件选择不同的查询方法
+            if (platformId != null && userId != null) {
+                results = contentRepository.searchByKeywordAndPlatformIdAndUserIdWithPlatformAndUser(
+                    trimmedKeyword, platformId, userId, pageable);
+            } else if (platformId != null) {
+                results = contentRepository.searchByKeywordAndPlatformIdWithPlatformAndUser(
+                    trimmedKeyword, platformId, pageable);
+            } else if (userId != null) {
+                results = contentRepository.searchByKeywordAndUserIdWithPlatformAndUser(
+                    trimmedKeyword, userId, pageable);
+            } else {
+                // 只有关键字，使用原有的搜索方法
+                return searchByKeyword(trimmedKeyword, pageable);
+            }
+            
+            log.info("关键字搜索完成: keyword={}, 找到 {} 条结果", trimmedKeyword, results.getTotalElements());
+            
+            // 验证搜索结果：确保每条结果在标题或正文中确实包含关键字
+            List<Content> filteredResults = results.getContent().stream()
+                .filter(content -> {
+                    String title = content.getTitle() != null ? content.getTitle().toLowerCase() : "";
+                    String body = content.getBody() != null ? content.getBody().toLowerCase() : "";
+                    // 去除 HTML 标签后搜索
+                    String bodyText = body.replaceAll("<[^>]+>", " ");
+                    String keywordLower = trimmedKeyword.toLowerCase();
+                    boolean matches = title.contains(keywordLower) || bodyText.contains(keywordLower);
+                    if (!matches) {
+                        log.warn("搜索结果验证失败: contentId={}, title={}, keyword={}", 
+                            content.getId(), content.getTitle(), trimmedKeyword);
+                    }
+                    return matches;
+                })
+                .collect(java.util.stream.Collectors.toList());
+            
+            // 如果过滤后有差异，记录警告
+            if (filteredResults.size() != results.getContent().size()) {
+                log.warn("搜索验证发现 {} 条不匹配的结果，已过滤", 
+                    results.getContent().size() - filteredResults.size());
+            }
+            
+            // 重新构建分页结果
+            if (filteredResults.size() != results.getContent().size()) {
+                results = new PageImpl<>(
+                    filteredResults, 
+                    pageable, 
+                    results.getTotalElements() - (results.getContent().size() - filteredResults.size())
+                );
+            }
+            
+            // 保存搜索历史
+            try {
+                SearchHistory history = new SearchHistory();
+                history.setQuery(trimmedKeyword);
+                history.setSearchType("DATABASE");
+                history.setResultCount((int) results.getTotalElements());
+                searchHistoryRepository.save(history);
+                if (log.isDebugEnabled()) {
+                    log.debug("存储搜索历史: query={}, platformId={}, userId={}, resultCount={}", 
+                        trimmedKeyword, platformId, userId, results.getTotalElements());
+                }
+            } catch (Exception e) {
+                log.warn("保存搜索历史失败: query={}", trimmedKeyword, e);
+            }
+            
+            return results;
+        } catch (Exception e) {
+            log.error("组合搜索失败: keyword={}, platformId={}, userId={}", trimmedKeyword, platformId, userId, e);
+            return Page.empty(pageable);
+        }
     }
     
     /**

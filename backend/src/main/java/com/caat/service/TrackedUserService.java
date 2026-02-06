@@ -62,20 +62,6 @@ public class TrackedUserService {
     }
     
     /**
-     * 根据优先级范围查询用户（分页）
-     */
-    public Page<TrackedUser> getUsersByPriorityRange(Integer minPriority, Integer maxPriority, Pageable pageable) {
-        return trackedUserRepository.findByPriorityBetween(minPriority, maxPriority, pageable);
-    }
-    
-    /**
-     * 根据最小优先级查询用户（分页）
-     */
-    public Page<TrackedUser> getUsersByMinPriority(Integer priority, Pageable pageable) {
-        return trackedUserRepository.findByPriorityGreaterThanEqual(priority, pageable);
-    }
-    
-    /**
      * 获取所有启用的用户
      */
     public List<TrackedUser> getActiveUsers() {
@@ -231,7 +217,6 @@ public class TrackedUserService {
         }
         existing.setGroupId(user.getGroupId());
         existing.setTags(user.getTags());
-        existing.setPriority(user.getPriority());
         existing.setIsActive(user.getIsActive());
         return trackedUserRepository.save(existing);
     }

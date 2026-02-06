@@ -39,7 +39,7 @@ public class ContentDocument {
     @Field(type = FieldType.Keyword)
     private String contentType;
     
-    @Field(type = FieldType.Date)
+    @Field(type = FieldType.Date, pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd||epoch_millis")
     private LocalDateTime publishedAt;
     
     @Field(type = FieldType.Boolean)
@@ -48,6 +48,6 @@ public class ContentDocument {
     @Field(type = FieldType.Boolean)
     private Boolean isFavorite;
     
-    @Field(type = FieldType.Date)
+    @Field(type = FieldType.Date, pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd||epoch_millis")
     private LocalDateTime createdAt;
 }

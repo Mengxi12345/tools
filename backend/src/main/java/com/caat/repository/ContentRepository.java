@@ -40,10 +40,25 @@ public interface ContentRepository extends JpaRepository<Content, UUID> {
            countQuery = "SELECT COUNT(c) FROM Content c WHERE c.contentType = :contentType")
     Page<Content> findByContentTypeWithPlatformAndUser(@Param("contentType") Content.ContentType contentType, Pageable pageable);
 
-    /** 关键词搜索，一次性加载 platform、user */
-    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user WHERE LOWER(COALESCE(c.title,'')) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(COALESCE(c.body,'')) LIKE LOWER(CONCAT('%', :q, '%'))",
+    /** 关键词搜索，一次性加载 platform、user，按发布时间倒序 */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user WHERE LOWER(COALESCE(c.title,'')) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(COALESCE(c.body,'')) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY c.publishedAt DESC",
            countQuery = "SELECT COUNT(c) FROM Content c WHERE LOWER(COALESCE(c.title,'')) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(COALESCE(c.body,'')) LIKE LOWER(CONCAT('%', :q, '%'))")
     Page<Content> searchByKeywordWithPlatformAndUser(@Param("q") String q, Pageable pageable);
+    
+    /** 关键词搜索 + 平台过滤，一次性加载 platform、user，按发布时间倒序 */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user WHERE c.platform.id = :platformId AND (LOWER(COALESCE(c.title,'')) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(COALESCE(c.body,'')) LIKE LOWER(CONCAT('%', :q, '%'))) ORDER BY c.publishedAt DESC",
+           countQuery = "SELECT COUNT(c) FROM Content c WHERE c.platform.id = :platformId AND (LOWER(COALESCE(c.title,'')) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(COALESCE(c.body,'')) LIKE LOWER(CONCAT('%', :q, '%')))")
+    Page<Content> searchByKeywordAndPlatformIdWithPlatformAndUser(@Param("q") String q, @Param("platformId") UUID platformId, Pageable pageable);
+    
+    /** 关键词搜索 + 用户过滤，一次性加载 platform、user，按发布时间倒序 */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user WHERE c.user.id = :userId AND (LOWER(COALESCE(c.title,'')) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(COALESCE(c.body,'')) LIKE LOWER(CONCAT('%', :q, '%'))) ORDER BY c.publishedAt DESC",
+           countQuery = "SELECT COUNT(c) FROM Content c WHERE c.user.id = :userId AND (LOWER(COALESCE(c.title,'')) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(COALESCE(c.body,'')) LIKE LOWER(CONCAT('%', :q, '%')))")
+    Page<Content> searchByKeywordAndUserIdWithPlatformAndUser(@Param("q") String q, @Param("userId") UUID userId, Pageable pageable);
+    
+    /** 关键词搜索 + 平台 + 用户过滤，一次性加载 platform、user，按发布时间倒序 */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user WHERE c.platform.id = :platformId AND c.user.id = :userId AND (LOWER(COALESCE(c.title,'')) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(COALESCE(c.body,'')) LIKE LOWER(CONCAT('%', :q, '%'))) ORDER BY c.publishedAt DESC",
+           countQuery = "SELECT COUNT(c) FROM Content c WHERE c.platform.id = :platformId AND c.user.id = :userId AND (LOWER(COALESCE(c.title,'')) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(COALESCE(c.body,'')) LIKE LOWER(CONCAT('%', :q, '%')))")
+    Page<Content> searchByKeywordAndPlatformIdAndUserIdWithPlatformAndUser(@Param("q") String q, @Param("platformId") UUID platformId, @Param("userId") UUID userId, Pageable pageable);
     
     Page<Content> findByUserId(UUID userId, Pageable pageable);
     

@@ -56,9 +56,6 @@ public class TrackedUser {
     @Column(name = "tag")
     private List<String> tags = new ArrayList<>();
 
-    @Column(nullable = false)
-    private Integer priority = 0;
-
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 

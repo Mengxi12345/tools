@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Button, Switch, message, Avatar, Typography, Empty } from 'antd';
+import { Button, message, Avatar, Typography, Empty } from 'antd';
 import {
   FileTextOutlined,
   UserOutlined,
   AppstoreOutlined,
   ReloadOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
   LinkOutlined,
   CalendarOutlined,
   StarFilled,
@@ -14,12 +12,11 @@ import {
   DownOutlined,
   UpOutlined,
 } from '@ant-design/icons';
-import { contentApi, userApi, platformApi, taskApi, getApiErrorMessage, getPlatformAvatarSrc } from '../services/api';
+import { contentApi, userApi, platformApi, getApiErrorMessage, getPlatformAvatarSrc } from '../services/api';
 import { getContentOriginalUrl, parseContentMetadata } from '../utils/contentUtils';
 import MainLayout from '../components/Layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
 
-const { Text } = Typography;
 
 function AuthorColumn({
   col,
@@ -96,7 +93,6 @@ function Dashboard() {
     totalPlatforms: 0,
     unreadContents: 0,
   });
-  const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [lastThreeDaysContents, setLastThreeDaysContents] = useState<ContentItem[]>([]);
   const [latestContents, setLatestContents] = useState<ContentItem[]>([]);
   const [floatingCollapsed, setFloatingCollapsed] = useState(false);
@@ -120,11 +116,10 @@ function Dashboard() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [contentStatsRes, usersRes, platformsRes, scheduleRes] = await Promise.all([
+      const [contentStatsRes, usersRes, platformsRes] = await Promise.all([
         contentApi.getStats().catch(() => ({ code: 200, data: { total: 0, unread: 0 } })) as Promise<any>,
         userApi.getAll({ page: 0, size: 1 }).catch(() => ({ code: 200, data: { totalElements: 0 } })) as Promise<any>,
         platformApi.getAll().catch(() => ({ code: 200, data: [] })) as Promise<any>,
-        taskApi.getScheduleStatus().catch(() => ({ code: 200, data: null })) as Promise<any>,
       ]);
 
       setStats({
@@ -135,13 +130,6 @@ function Dashboard() {
           ? (Array.isArray(platformsRes.data) ? platformsRes.data.length : (platformsRes.data?.content?.length ?? 0))
           : 0,
       });
-
-      // 与定时任务页统一：有 data 用 data，否则用后端默认 true（无配置视为已启用）
-      const enabled =
-        scheduleRes?.code === 200 && scheduleRes.data != null
-          ? (scheduleRes.data?.isEnabled ?? scheduleRes.data === true)
-          : true;
-      setScheduleEnabled(Boolean(enabled));
 
       const { startTime, endTime } = getLastThreeDaysRange();
       const contentsRes: any = await contentApi.getAll({
@@ -168,20 +156,6 @@ function Dashboard() {
       message.error(getApiErrorMessage(error, '加载仪表盘数据失败'));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleToggleSchedule = async (enabled: boolean) => {
-    try {
-      const response: any = enabled
-        ? await taskApi.enableSchedule()
-        : await taskApi.disableSchedule();
-      if (response.code === 200) {
-        setScheduleEnabled(enabled);
-        message.success(enabled ? '定时任务已启用' : '定时任务已禁用');
-      }
-    } catch (error) {
-      message.error(getApiErrorMessage(error, '操作失败'));
     }
   };
 
@@ -307,16 +281,6 @@ function Dashboard() {
               </div>
             </div>
             <div className="dashboard-header__actions">
-              <div className="dashboard-schedule">
-                <Text type="secondary" style={{ fontSize: 12 }}>定时任务</Text>
-                <Switch
-                  checked={scheduleEnabled}
-                  onChange={handleToggleSchedule}
-                  checkedChildren={<CheckCircleOutlined />}
-                  unCheckedChildren={<CloseCircleOutlined />}
-                  size="small"
-                />
-              </div>
               <Button type="default" size="small" icon={<ReloadOutlined />} onClick={handleRefreshAll}>
                 批量刷新
               </Button>
@@ -518,8 +482,6 @@ function Dashboard() {
           gap: var(--space-md);
           margin-left: auto;
         }
-        .dashboard-schedule { display: flex; align-items: center; gap: var(--space-sm); }
-        .dashboard-schedule .ant-switch { margin: 0; }
 
         .dashboard-section {
           margin-top: var(--space-xl);

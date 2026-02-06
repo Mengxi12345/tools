@@ -25,8 +25,6 @@ public interface TrackedUserRepository extends JpaRepository<TrackedUser, UUID> 
 
     List<TrackedUser> findByIsActiveTrue();
 
-    List<TrackedUser> findByGroupIdOrderByPriorityDesc(UUID groupId);
-
     Page<TrackedUser> findByGroupId(UUID groupId, Pageable pageable);
 
     @Query("SELECT u FROM TrackedUser u WHERE u.platform.id = :platformId AND u.userId = :userId")
@@ -51,20 +49,6 @@ public interface TrackedUserRepository extends JpaRepository<TrackedUser, UUID> 
     @Query(value = "SELECT DISTINCT u FROM TrackedUser u LEFT JOIN FETCH u.platform JOIN u.tags t WHERE t IN :tags",
            countQuery = "SELECT COUNT(DISTINCT u) FROM TrackedUser u JOIN u.tags t WHERE t IN :tags")
     Page<TrackedUser> findByTagsIn(@Param("tags") List<String> tags, Pageable pageable);
-
-    /**
-     * 根据优先级范围查询用户，一次性加载 platform
-     */
-    @Query(value = "SELECT u FROM TrackedUser u LEFT JOIN FETCH u.platform WHERE u.priority BETWEEN :minPriority AND :maxPriority",
-           countQuery = "SELECT COUNT(u) FROM TrackedUser u WHERE u.priority BETWEEN :minPriority AND :maxPriority")
-    Page<TrackedUser> findByPriorityBetween(@Param("minPriority") Integer minPriority, @Param("maxPriority") Integer maxPriority, Pageable pageable);
-
-    /**
-     * 根据优先级查询用户（大于等于指定优先级），一次性加载 platform
-     */
-    @Query(value = "SELECT u FROM TrackedUser u LEFT JOIN FETCH u.platform WHERE u.priority >= :priority",
-           countQuery = "SELECT COUNT(u) FROM TrackedUser u WHERE u.priority >= :priority")
-    Page<TrackedUser> findByPriorityGreaterThanEqual(@Param("priority") Integer priority, Pageable pageable);
 
     /**
      * 统计每个标签被多少用户使用

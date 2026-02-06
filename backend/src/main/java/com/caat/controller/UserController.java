@@ -43,16 +43,14 @@ public class UserController {
         return ApiResponse.success(Map.of("url", url));
     }
 
-    @Operation(summary = "获取用户列表", description = "分页获取所有追踪用户，支持标签和优先级过滤")
+    @Operation(summary = "获取用户列表", description = "分页获取所有追踪用户，支持标签过滤")
     @GetMapping
     public ApiResponse<Page<TrackedUser>> getAllUsers(
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size,
         @RequestParam(defaultValue = "createdAt") String sortBy,
         @RequestParam(defaultValue = "DESC") String sortDir,
-        @RequestParam(required = false) String tag,
-        @RequestParam(required = false) Integer minPriority,
-        @RequestParam(required = false) Integer maxPriority
+        @RequestParam(required = false) String tag
     ) {
         Sort sort = sortDir.equalsIgnoreCase("ASC") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -60,13 +58,6 @@ public class UserController {
         // 按标签过滤
         if (tag != null && !tag.isEmpty()) {
             return ApiResponse.success(trackedUserService.getUsersByTag(tag, pageable));
-        }
-        
-        // 按优先级范围过滤
-        if (minPriority != null || maxPriority != null) {
-            int min = minPriority != null ? minPriority : Integer.MIN_VALUE;
-            int max = maxPriority != null ? maxPriority : Integer.MAX_VALUE;
-            return ApiResponse.success(trackedUserService.getUsersByPriorityRange(min, max, pageable));
         }
         
         return ApiResponse.success(trackedUserService.getAllUsers(pageable));
@@ -97,7 +88,6 @@ public class UserController {
         user.setAvatarUrl(request.getAvatarUrl());
         user.setGroupId(request.getGroupId());
         user.setTags(request.getTags());
-        user.setPriority(request.getPriority() != null ? request.getPriority() : 0);
         user.setIsActive(true);
         
         return ApiResponse.success(trackedUserService.createUser(user));
@@ -115,7 +105,6 @@ public class UserController {
         user.setSelfIntroduction(request.getSelfIntroduction());
         user.setGroupId(request.getGroupId());
         user.setTags(request.getTags());
-        user.setPriority(request.getPriority());
         user.setIsActive(request.getIsActive());
         
         return ApiResponse.success(trackedUserService.updateUser(id, user));

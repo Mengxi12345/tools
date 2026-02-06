@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, Popconfirm, Switch, Progress, Upload } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Switch, Progress, Upload } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, UserOutlined, UserAddOutlined, TeamOutlined, UploadOutlined } from '@ant-design/icons';
 import { Avatar, Typography } from 'antd';
 import { userApi, platformApi, taskApi, groupApi, getApiErrorMessage, getAvatarSrc, getPlatformAvatarSrc } from '../services/api';
@@ -24,7 +24,6 @@ interface User {
   createdAt: string;
   groupId?: string;
   tags?: string[];
-  priority?: number;
 }
 
 /** 当前页各用户的文章总数（由 content-counts 接口填充） */
@@ -78,7 +77,7 @@ function Users() {
     }
   };
 
-  const loadUsers = async (page: number, size: number, sortBy: string = 'priority', sortDir: string = 'DESC') => {
+  const loadUsers = async (page: number, size: number, sortBy: string = 'createdAt', sortDir: string = 'DESC') => {
     setLoading(true);
     try {
       const response: any = await userApi.getAll({ page: page - 1, size, sortBy, sortDir });
@@ -128,7 +127,6 @@ function Users() {
       selfIntroduction: user.selfIntroduction ?? '',
       groupId: user.groupId ?? undefined,
       tags: user.tags ?? [],
-      priority: user.priority ?? 0,
       isActive: user.isActive,
     });
     setModalVisible(true);
@@ -320,16 +318,6 @@ function Users() {
           {contentCounts[record.id] ?? 0}
         </Typography.Text>
       ),
-    },
-    {
-      title: '优先级',
-      dataIndex: 'priority',
-      key: 'priority',
-      width: 80,
-      align: 'center' as const,
-      sorter: true,
-      defaultSortOrder: 'descend' as const,
-      render: (v: number) => <span className="users-table-priority">{v ?? 0}</span>,
     },
     {
       title: '标签',
@@ -575,9 +563,6 @@ function Users() {
             <Form.Item name="tags" label="标签">
               <Select mode="tags" placeholder="输入标签后回车添加" tokenSeparators={[',']} />
             </Form.Item>
-            <Form.Item name="priority" label="优先级" initialValue={0}>
-              <InputNumber min={0} style={{ width: '100%' }} placeholder="数字越大越优先" />
-            </Form.Item>
             <Form.Item
               name="isActive"
               label="状态"
@@ -714,7 +699,6 @@ function Users() {
         .users-table-platform-avatar { flex-shrink: 0; }
         .users-table-intro-full { font-size: 13px; color: #595959; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow-y: auto; }
         .users-table-userid { font-size: 12px !important; font-family: ui-monospace, monospace; }
-        .users-table-priority { font-weight: 500; color: #0f3460; }
         .users-table-tags { font-size: 12px; color: #595959; }
         .users-table-platform { font-weight: 500; color: #262626; }
         .users-table-empty { color: #bfbfbf; }
