@@ -146,12 +146,6 @@
             <optional>true</optional>
         </dependency>
         
-        <!-- Spring Boot Actuator -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-        
         <!-- OpenPDF for PDF export -->
         <dependency>
             <groupId>com.github.librepdf</groupId>
