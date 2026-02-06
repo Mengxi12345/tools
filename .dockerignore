@@ -1,0 +1,61 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.iml
+*.swp
+*.swo
+*~
+
+# 日志
+*.log
+logs/
+
+# 构建产物
+target/
+dist/
+node_modules/
+.npm
+.pnpm-store
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# 文档
+docs/
+*.md
+!README.md
+
+# 脚本（保留部署相关）
+scripts/
+!scripts/build-images.sh
+!scripts/push-images.sh
+!scripts/deploy-docker.sh
+
+# 测试
+*.test.js
+*.spec.js
+__tests__/
+coverage/
+
+# 环境配置
+.env
+.env.local
+.env.*.local
+
+# Docker
+docker-compose*.yml
+.dockerignore
+Dockerfile*
+
+# 其他
+.cursor/
+plan.md
+monitoring/

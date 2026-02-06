@@ -38,6 +38,8 @@ class ContentFetchServiceTest {
     private NotificationService notificationService;
     private ContentAssetService contentAssetService;
     private ZsxqFileService zsxqFileService;
+    private FetchTaskProgressUpdater fetchTaskProgressUpdater;
+    private ScheduleService scheduleService;
 
     private ContentFetchService service;
 
@@ -52,6 +54,8 @@ class ContentFetchServiceTest {
         notificationService = mock(NotificationService.class);
         contentAssetService = mock(ContentAssetService.class);
         zsxqFileService = mock(ZsxqFileService.class);
+        fetchTaskProgressUpdater = mock(FetchTaskProgressUpdater.class);
+        scheduleService = mock(ScheduleService.class);
 
         service = new ContentFetchService(
             trackedUserRepository,
@@ -62,7 +66,9 @@ class ContentFetchServiceTest {
             elasticsearchService,
             notificationService,
             contentAssetService,
-            zsxqFileService
+            zsxqFileService,
+            fetchTaskProgressUpdater,
+            scheduleService
         );
     }
 

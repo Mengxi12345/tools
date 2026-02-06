@@ -221,13 +221,10 @@ function Settings() {
     scheduleEnabled,
     scheduleInterval,
     loadingSchedule,
-    contentAssetDownloadEnabled,
-    loadingContentAssetDownload,
     userScheduleStatus,
     setUserScheduleStatus,
     loadScheduleStatus,
     handleToggleGlobalSchedule,
-    handleToggleContentAssetDownload,
   } = useScheduleStatus();
 
   const { users, loadUsers } = useUsers();
@@ -248,10 +245,6 @@ function Settings() {
     fetchHistoryPageSize,
     fetchHistoryTotal,
     loadFetchHistory,
-    setFetchHistory,
-    setFetchHistoryPage,
-    setFetchHistoryPageSize,
-    setFetchHistoryTotal,
   } = useFetchHistory();
 
   const [fetchHistorySelectedRowKeys, setFetchHistorySelectedRowKeys] = useState<string[]>([]);
@@ -351,25 +344,6 @@ function Settings() {
           </Button>
         </Popconfirm>
       ),
-    },
-  ];
-
-  const globalSettingsItems = [
-    {
-      key: 'globalSchedule',
-      label: '全局定时任务',
-      description: `当前执行间隔：${scheduleInterval || '默认'}`,
-      checked: scheduleEnabled,
-      loading: loadingSchedule,
-      onChange: handleToggleGlobalSchedule,
-    },
-    {
-      key: 'contentAssetDownload',
-      label: '文章附件下载到本地',
-      description: '开启后，拉取文章时会下载图片和附件到本地并使用本地地址；关闭则保留平台原始地址。',
-      checked: contentAssetDownloadEnabled,
-      loading: loadingContentAssetDownload,
-      onChange: handleToggleContentAssetDownload,
     },
   ];
 

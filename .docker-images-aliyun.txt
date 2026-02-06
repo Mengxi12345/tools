@@ -1,0 +1,5 @@
+ALIYUN_BACKEND_IMAGE=crpi-anqb8q8dr9wohaz8.cn-beijing.personal.cr.aliyuncs.com/mengxi666/mengxi666-backend:1.0.0
+ALIYUN_FRONTEND_IMAGE=crpi-anqb8q8dr9wohaz8.cn-beijing.personal.cr.aliyuncs.com/mengxi666/mengxi666-frontend:1.0.0
+VERSION=1.0.0
+ALIYUN_REGISTRY=crpi-anqb8q8dr9wohaz8.cn-beijing.personal.cr.aliyuncs.com
+ALIYUN_NAMESPACE=mengxi666

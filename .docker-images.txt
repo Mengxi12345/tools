@@ -1,0 +1,6 @@
+BACKEND_IMAGE=content-aggregator-backend:1.0.0
+BACKEND_IMAGE_LATEST=content-aggregator-backend:latest
+FRONTEND_IMAGE=content-aggregator-frontend:1.0.0
+FRONTEND_IMAGE_LATEST=content-aggregator-frontend:latest
+VERSION=1.0.0
+REGISTRY=

@@ -1,0 +1,15 @@
+# 禁用 Elasticsearch 配置（profile: no-es）
+# 使用方式: SPRING_PROFILES_ACTIVE=prod,no-es 或 --spring.profiles.active=prod,no-es
+# 适用于资源受限环境（如 2GB 内存 ECS），全文搜索将回退到数据库
+
+app:
+  elasticsearch:
+    enabled: false
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration

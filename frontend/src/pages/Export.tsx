@@ -581,7 +581,7 @@ function Export() {
                 dataIndex: 'filePath',
                 key: 'filePath',
                 width: 250,
-                render: (filePath: string, record: any) => {
+                render: (filePath: string) => {
                   if (!filePath) {
                     return <span style={{ color: '#999' }}>未生成</span>;
                   }

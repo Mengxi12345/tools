@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Descriptions, Space, Button, Tag, message, Spin, Form, Input, Image } from 'antd';
 import { ArrowLeftOutlined, LinkOutlined, StarOutlined, StarFilled, EyeOutlined, ReloadOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
-import { contentApi, getApiErrorMessage, getPlatformAvatarSrc } from '../services/api';
+import { contentApi, getApiErrorMessage, getPlatformAvatarSrc, getContentImageSrc } from '../services/api';
 import MainLayout from '../components/Layout/MainLayout';
 import { getContentOriginalUrl, parseContentMetadata } from '../utils/contentUtils';
 
@@ -21,6 +21,16 @@ interface ContentDetailData {
   metadata?: any;
   mediaUrls?: string[];
   notes?: string;
+}
+
+/** 处理内容正文中的图片 URL，将本地路径转换为完整 URL */
+function processContentBody(body: string): string {
+  if (!body) return '';
+  // 匹配 <img> 标签中的 src 属性
+  return body.replace(/<img([^>]*)\ssrc=["']([^"']+)["']([^>]*)>/gi, (_match, before, src, after) => {
+    const processedSrc = getContentImageSrc(src) || src;
+    return `<img${before} src="${processedSrc}"${after}>`;
+  });
 }
 
 function ContentDetail() {
@@ -299,7 +309,12 @@ function ContentDetail() {
 
             {content.body && (
               <Card title="正文" size="small">
-                <div style={{ whiteSpace: 'pre-wrap' }}>{content.body}</div>
+                <div 
+                  style={{ whiteSpace: 'pre-wrap' }}
+                  dangerouslySetInnerHTML={{
+                    __html: processContentBody(content.body)
+                  }}
+                />
               </Card>
             )}
 
@@ -310,7 +325,7 @@ function ContentDetail() {
                     {content.mediaUrls.map((src, i) => (
                       <Image
                         key={i}
-                        src={getPlatformAvatarSrc(src) || src}
+                        src={getContentImageSrc(src) || src}
                         alt=""
                         width={200}
                         height={200}

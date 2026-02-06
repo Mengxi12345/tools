@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+// 默认使用相对路径，部署后与页面同源，由 Nginx 代理 /api 到后端；本地开发时 Vite proxy 转发
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || '/api/v1';
 
 export const AUTH_TOKEN_KEY = 'caat_token';
 
@@ -69,7 +70,8 @@ export interface ApiResponse<T> {
 }
 
 // 平台相关API：附件/图片完整 URL 需指向后端，与 apiClient baseURL 同源
-const API_BASE_ORIGIN = new URL(API_BASE_URL).origin;
+const API_BASE_ORIGIN =
+  API_BASE_URL.startsWith('http') ? new URL(API_BASE_URL).origin : (typeof window !== 'undefined' ? window.location.origin : '');
 
 export const platformApi = {
   getAll: () => apiClient.get<ApiResponse<any>>('/platforms'),
@@ -93,14 +95,22 @@ export function getPlatformAvatarSrc(avatarUrl: string | undefined): string | un
   if (!avatarUrl) return undefined;
   const url = avatarUrl.trim();
   if (!url) return undefined;
+  // 已经是完整的 HTTP/HTTPS URL，直接返回
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   // 本地上传的相对路径：/api/v1/uploads/... 或 api/v1/uploads/... 或 /uploads/... 等
   if (url.startsWith('/api/')) return `${API_BASE_ORIGIN}${url}`;
   if (url.startsWith('api/')) return `${API_BASE_ORIGIN}/${url}`;
   if (url.startsWith('/uploads/')) return `${API_BASE_ORIGIN}${url}`;
   if (url.startsWith('uploads/')) return `${API_BASE_ORIGIN}/${url}`;
+  // 如果是以 / 开头的相对路径，可能是本地上传文件，添加 API_BASE_ORIGIN
+  if (url.startsWith('/')) return `${API_BASE_ORIGIN}${url}`;
   // 兜底：保持原样
   return url;
+}
+
+/** 内容图片完整 URL（用于 mediaUrls 和 body 中的图片） */
+export function getContentImageSrc(imageUrl: string | undefined): string | undefined {
+  return getPlatformAvatarSrc(imageUrl);
 }
 
 /** 用户头像完整 URL（追踪用户头像，同平台头像逻辑） */

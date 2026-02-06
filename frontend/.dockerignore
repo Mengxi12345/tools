@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.npm
+.pnpm-store
+*.log
+.idea/
+.vscode/
+.DS_Store
+coverage/
+__tests__/

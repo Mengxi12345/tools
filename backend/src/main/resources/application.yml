@@ -90,6 +90,8 @@ spring:
 # QQ 群通知（可选）：go-cqhttp / Mirai HTTP API 地址，通知规则中未配置 qqApiUrl 时使用
 # 飞书通知（可选）：规则中未配置 feishuAppId/feishuAppSecret 时使用
 app:
+  elasticsearch:
+    enabled: true  # 设为 false 或使用 profile no-es 可禁用，全文搜索将回退到数据库
   upload-dir: uploads  # 实际路径：backend/uploads（启动脚本在 backend 目录运行）
   api-logging:
     enabled: true

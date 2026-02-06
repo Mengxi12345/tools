@@ -48,6 +48,49 @@
 
 ## 快速开始
 
+### Docker 部署（推荐）
+
+使用 Docker 可以快速部署所有组件，无需手动配置环境。
+
+**快速部署：**
+```bash
+# 1. 构建镜像
+./scripts/build-images.sh 1.0.0
+
+# 2. 启动服务
+docker compose up -d
+
+# 3. 访问应用
+# 前端: http://localhost:3000
+# 后端: http://localhost:8080
+```
+
+**推送到阿里云：**
+```bash
+# 一键构建并推送到阿里云 ACR
+./scripts/build-images-aliyun.sh 1.0.0 梦溪mengxi
+
+# 在 ECS 上部署
+./scripts/deploy-aliyun.sh 1.0.0
+```
+
+**推送到其他仓库：**
+```bash
+# 1. 构建并推送镜像
+./scripts/build-images.sh 1.0.0 docker.io/your-username
+./scripts/push-images.sh 1.0.0 docker.io/your-username
+
+# 2. 在服务器上部署
+./scripts/deploy-docker.sh production 1.0.0 docker.io/your-username
+```
+
+详细文档请参考：
+- [阿里云完整部署流程](./docs/ALIYUN_FULL_DEPLOYMENT.md) - 阿里云 ECS 从零到上线
+- [Docker 部署完整指南](./docs/DOCKER_DEPLOYMENT.md)
+- [Docker 快速参考](./docs/DOCKER_QUICK_START.md)
+
+### 手动部署
+
 ### 方式一：Docker Compose（推荐）
 
 **仅核心服务（PostgreSQL + Redis + 后端 + 前端）：**

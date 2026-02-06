@@ -28,7 +28,7 @@ import {
   RightOutlined,
   FileTextOutlined,
 } from '@ant-design/icons';
-import { contentApi, platformApi, userApi, getApiErrorMessage } from '../services/api';
+import { contentApi, platformApi, userApi, getApiErrorMessage, getAvatarSrc } from '../services/api';
 import MainLayout from '../components/Layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
 import SearchBar from '../components/Search/SearchBar';
@@ -49,7 +49,7 @@ interface Content {
   isRead: boolean;
   isFavorite: boolean;
   platform: { id: string; name: string };
-  user: { id: string; username: string };
+  user: { id: string; username: string; avatarUrl?: string };
   metadata?: unknown;
 }
 
@@ -464,7 +464,7 @@ function Contents() {
 
   const renderContentCard = (record: Content) => {
     const originalUrl = getContentOriginalUrl(record);
-    const { nickName, userAvatar } = parseContentMetadata(record.metadata);
+    const { nickName } = parseContentMetadata(record.metadata);
     const highlightedTitle = searchKeyword ? highlightText(record.title || '无标题', searchKeyword) : (record.title || '无标题');
     const titleLink = (
       <a
@@ -491,7 +491,7 @@ function Contents() {
             <div className="content-timeline-card__meta">
               <Tag className="content-timeline-card__platform">{record.platform?.name ?? '-'}</Tag>
               <Space size="small" className="content-timeline-card__author">
-                {userAvatar && <Avatar src={userAvatar} size={22} />}
+                {record.user?.avatarUrl && <Avatar src={getAvatarSrc(record.user.avatarUrl)} size={22} />}
                 <Text type="secondary" className="content-timeline-card__author-name">
                   {nickName ?? record.user?.username ?? '-'}
                 </Text>
@@ -570,11 +570,11 @@ function Contents() {
       key: 'platformNickname',
       width: 120,
       render: (_: any, record: Content) => {
-        const { nickName, userAvatar } = parseContentMetadata(record.metadata);
-        if (!nickName && !userAvatar) return <Text type="secondary">-</Text>;
+        const { nickName } = parseContentMetadata(record.metadata);
+        if (!nickName && !record.user?.avatarUrl) return <Text type="secondary">-</Text>;
         return (
           <Space size="small">
-            {userAvatar && <Avatar src={userAvatar} size={24} />}
+            {record.user?.avatarUrl && <Avatar src={getAvatarSrc(record.user.avatarUrl)} size={24} />}
             <span style={{ fontSize: 13 }}>{nickName ?? '-'}</span>
           </Space>
         );
@@ -715,7 +715,7 @@ function Contents() {
         
         {filters.search && (
           <Card className="contents-page__filter-card" bordered={false}>
-            <Space wrap style={{ width: '100%' }} size="middle" justify="space-between">
+            <Space wrap style={{ width: '100%', justifyContent: 'space-between' }} size="middle">
               <div className="contents-page__search-wrap">
                 <SearchBar onSearch={handleSearch} placeholder="搜索关键字（匹配标题和正文内容）" showHistory={true} />
               </div>

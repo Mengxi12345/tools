@@ -1,5 +1,6 @@
 # 生产环境配置（可通过环境变量覆盖）
 # 使用方式：SPRING_PROFILES_ACTIVE=prod 或 --spring.profiles.active=prod
+# 禁用 ES（资源受限时）：SPRING_PROFILES_ACTIVE=prod,no-es
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/caat_db}
