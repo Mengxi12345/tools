@@ -16,8 +16,8 @@ interface ContentDetailData {
   publishedAt?: string;
   isRead?: boolean;
   isFavorite?: boolean;
-  platform?: { name?: string };
-  user?: { username?: string };
+  platform?: { name?: string; avatarUrl?: string };
+  user?: { username?: string; avatarUrl?: string };
   metadata?: any;
   mediaUrls?: string[];
   notes?: string;
@@ -34,6 +34,7 @@ function ContentDetail() {
     next: null,
   });
   const [loadingAdjacent, setLoadingAdjacent] = useState(false);
+  const [refreshingAssets, setRefreshingAssets] = useState(false);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -125,6 +126,24 @@ function ContentDetail() {
     }
   };
 
+  const handleRefreshAssets = async () => {
+    if (!id) return;
+    try {
+      setRefreshingAssets(true);
+      const res: any = await contentApi.refreshAssets(id);
+      if (res?.code === 200 && res?.data) {
+        message.success('图片已刷新到本地');
+        setContent(res.data);
+      } else {
+        message.error(res?.message || '刷新图片失败');
+      }
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '刷新图片失败'));
+    } finally {
+      setRefreshingAssets(false);
+    }
+  };
+
   return (
     <MainLayout>
       <Card
@@ -150,7 +169,9 @@ function ContentDetail() {
           (() => {
             const meta = parseContentMetadata(content.metadata);
             const authorName = meta.nickName ?? content.user?.username ?? '-';
-            const authorAvatar = meta.userAvatar;
+            // 优先使用 user.avatarUrl，其次使用 metadata 中的 userAvatar
+            const authorAvatar = content.user?.avatarUrl || meta.userAvatar;
+            const authorAvatarSrc = authorAvatar ? (getPlatformAvatarSrc(authorAvatar) || authorAvatar) : undefined;
             const originalUrl = getContentOriginalUrl({ url: content.url, contentId: content.contentId, platform: content.platform });
 
             return (
@@ -166,7 +187,7 @@ function ContentDetail() {
               {content.isFavorite && <Tag color="red">收藏</Tag>}
             </Space>
 
-            <Space>
+            <Space wrap>
               {originalUrl && (
                 <Button
                   icon={<LinkOutlined />}
@@ -192,6 +213,14 @@ function ContentDetail() {
                   标记已读
                 </Button>
               )}
+              <Button
+                icon={<ReloadOutlined />}
+                type="default"
+                loading={refreshingAssets}
+                onClick={handleRefreshAssets}
+              >
+                刷新图片
+              </Button>
             </Space>
 
             <Descriptions bordered column={1} size="small">
@@ -200,9 +229,9 @@ function ContentDetail() {
               </Descriptions.Item>
               <Descriptions.Item label="作者">
                 <Space>
-                  {authorAvatar && (
+                  {authorAvatarSrc && (
                     <img
-                      src={authorAvatar}
+                      src={authorAvatarSrc}
                       alt=""
                       style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }}
                     />

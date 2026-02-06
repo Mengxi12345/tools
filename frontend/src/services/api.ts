@@ -91,8 +91,16 @@ export const platformApi = {
 /** 平台头像完整 URL：相对路径则拼上后端 origin */
 export function getPlatformAvatarSrc(avatarUrl: string | undefined): string | undefined {
   if (!avatarUrl) return undefined;
-  if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) return avatarUrl;
-  return avatarUrl.startsWith('/') ? `${API_BASE_ORIGIN}${avatarUrl}` : avatarUrl;
+  const url = avatarUrl.trim();
+  if (!url) return undefined;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  // 本地上传的相对路径：/api/v1/uploads/... 或 api/v1/uploads/... 或 /uploads/... 等
+  if (url.startsWith('/api/')) return `${API_BASE_ORIGIN}${url}`;
+  if (url.startsWith('api/')) return `${API_BASE_ORIGIN}/${url}`;
+  if (url.startsWith('/uploads/')) return `${API_BASE_ORIGIN}${url}`;
+  if (url.startsWith('uploads/')) return `${API_BASE_ORIGIN}/${url}`;
+  // 兜底：保持原样
+  return url;
 }
 
 /** 用户头像完整 URL（追踪用户头像，同平台头像逻辑） */
@@ -153,6 +161,9 @@ export const contentApi = {
     apiClient.get<ApiResponse<{ previous: any | null; next: any | null }>>(`/contents/${id}/adjacent`, {
       params: { sameUserOnly: sameUserOnly ?? false },
     }),
+  /** 刷新单篇内容的图片与附件（将外部地址下载到本地） */
+  refreshAssets: (id: string) =>
+    apiClient.post<ApiResponse<any>>(`/contents/${id}/refresh-assets`),
   update: (id: string, data: any) => apiClient.put<ApiResponse<any>>(`/contents/${id}`, data),
   delete: (id: string) => apiClient.delete<ApiResponse<void>>(`/contents/${id}`),
   /** 按作者删除：删除指定作者（追踪用户）下的全部内容，返回删除条数 */

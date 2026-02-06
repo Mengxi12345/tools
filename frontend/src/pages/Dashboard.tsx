@@ -14,7 +14,7 @@ import {
   DownOutlined,
   UpOutlined,
 } from '@ant-design/icons';
-import { contentApi, userApi, platformApi, taskApi, getApiErrorMessage } from '../services/api';
+import { contentApi, userApi, platformApi, taskApi, getApiErrorMessage, getPlatformAvatarSrc } from '../services/api';
 import { getContentOriginalUrl, parseContentMetadata } from '../utils/contentUtils';
 import MainLayout from '../components/Layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
@@ -36,7 +36,7 @@ function AuthorColumn({
     <>
       <div className="dashboard-author-column__head">
         {col.authorAvatar ? (
-          <Avatar src={col.authorAvatar} size={40} className="dashboard-author-column__avatar" />
+          <Avatar src={getPlatformAvatarSrc(col.authorAvatar) || col.authorAvatar} size={40} className="dashboard-author-column__avatar" />
         ) : (
           <Avatar size={40} icon={<UserOutlined />} className="dashboard-author-column__avatar dashboard-author-column__avatar--default" />
         )}
@@ -84,7 +84,7 @@ interface ContentItem {
   isRead: boolean;
   isFavorite: boolean;
   platform?: { id: string; name: string };
-  user?: { id: string; username: string; displayName?: string };
+  user?: { id: string; username: string; displayName?: string; avatarUrl?: string };
   metadata?: unknown;
 }
 
@@ -221,10 +221,12 @@ function Dashboard() {
       );
       const first = sorted[0];
       const { nickName, userAvatar } = parseContentMetadata(first?.metadata);
+      // 优先使用 user.avatarUrl，其次使用 metadata 中的 userAvatar
+      const avatarUrl = first?.user?.avatarUrl || userAvatar;
       result.push({
         authorKey,
         authorName: nickName ?? first?.user?.username ?? '未知作者',
-        authorAvatar: userAvatar,
+        authorAvatar: avatarUrl,
         items: sorted,
       });
     });

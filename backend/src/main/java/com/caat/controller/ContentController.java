@@ -83,6 +83,12 @@ public class ContentController {
     public ApiResponse<Content> getContent(@PathVariable UUID id) {
         return ApiResponse.success(contentService.getContentById(id));
     }
+
+    @Operation(summary = "刷新单篇内容图片", description = "仅刷新 mediaUrls 中的图片：若为外部地址则下载到本地并更新为本地地址")
+    @PostMapping("/{id}/refresh-assets")
+    public ApiResponse<Content> refreshContentAssets(@PathVariable UUID id) {
+        return ApiResponse.success(contentService.refreshContentAssets(id));
+    }
     
     @Operation(summary = "获取上一篇和下一篇内容", description = "根据当前内容ID获取相邻的内容，支持按同一用户或全局查找")
     @GetMapping("/{id}/adjacent")

@@ -227,6 +227,67 @@ public class ContentService {
     }
 
     /**
+     * 刷新单篇内容的图片：
+     * - 仅处理 mediaUrls 中的图片 URL；
+     * - 如果 URL 不是本地上传目录（/api/v1/uploads/...），则下载到本地并更新为本地地址；
+     * - 已是本地地址的保持不变；
+     * - 其他字段与附件元数据不做修改。
+     */
+    @Transactional
+    public Content refreshContentAssets(UUID contentId) {
+        Content content = contentRepository.findById(contentId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.CONTENT_NOT_FOUND));
+
+        boolean changed = false;
+
+        // 1. 刷新 mediaUrls 中的图片：远程 URL -> 本地 URL
+        List<String> mediaUrls = content.getMediaUrls();
+        if (mediaUrls != null && !mediaUrls.isEmpty()) {
+            List<String> newMediaUrls = new ArrayList<>();
+            for (String url : mediaUrls) {
+                String u = url != null ? url.trim() : null;
+                if (u == null || u.isEmpty()) {
+                    continue;
+                }
+                if (isLocalUploadUrl(u)) {
+                    newMediaUrls.add(u);
+                    continue;
+                }
+                try {
+                    String localUrl = contentAssetService.downloadImageAndSave(u);
+                    if (localUrl != null && !localUrl.isEmpty()) {
+                        newMediaUrls.add(localUrl);
+                        changed = true;
+                    } else {
+                        newMediaUrls.add(u);
+                    }
+                } catch (BusinessException e) {
+                    throw e;
+                } catch (Exception e) {
+                    log.warn("刷新内容图片到本地失败，保留原 URL: contentId={}, url={}, error={}",
+                        content.getId(), u, e.getMessage());
+                    newMediaUrls.add(u);
+                }
+            }
+            content.setMediaUrls(newMediaUrls);
+        }
+
+        if (changed) {
+            Content saved = contentRepository.save(content);
+            return saved;
+        }
+
+        return content;
+    }
+
+    private static boolean isLocalUploadUrl(String url) {
+        if (url == null) return false;
+        String u = url.trim();
+        return u.startsWith("/api/v1/uploads/");
+    }
+
+
+    /**
      * 按关键词搜索内容（标题、正文）
      * 优先使用 Elasticsearch，如果失败则回退到数据库搜索
      */

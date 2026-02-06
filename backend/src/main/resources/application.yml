@@ -83,12 +83,14 @@ spring:
           jobStore:
             driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
 
-# 上传文件存储目录（相对为项目工作目录下的 uploads）
+# 上传文件存储目录（相对于后端工作目录）
+# 注意：启动脚本 run-backend-no-sleep.sh 在 backend 目录运行，因此配置 uploads 实际指向 backend/uploads
+# 如需从项目根目录启动，可改为 backend/uploads
 # API 入参/出参日志：DEBUG 级别打印所有接口请求体、响应体，可通过 app.api-logging.enabled 关闭
 # QQ 群通知（可选）：go-cqhttp / Mirai HTTP API 地址，通知规则中未配置 qqApiUrl 时使用
 # 飞书通知（可选）：规则中未配置 feishuAppId/feishuAppSecret 时使用
 app:
-  upload-dir: uploads
+  upload-dir: uploads  # 实际路径：backend/uploads（启动脚本在 backend 目录运行）
   api-logging:
     enabled: true
     max-body-length: 2048   # 入参/出参截断长度，避免日志过大
