@@ -644,6 +644,41 @@ function Settings() {
           columns={fetchHistoryColumns}
         />
       </div>
+      <style>{`
+        @media (max-width: 767px) {
+          .ant-card {
+            margin-bottom: 12px;
+          }
+          .ant-card-head {
+            padding: 12px 16px;
+          }
+          .ant-card-body {
+            padding: 12px;
+          }
+          .ant-card-extra {
+            padding: 0;
+          }
+          .ant-card-extra .ant-space {
+            flex-wrap: wrap;
+            gap: 4px;
+          }
+          .ant-table {
+            font-size: 12px;
+          }
+          .ant-table-thead > tr > th {
+            padding: 8px 4px !important;
+            font-size: 11px;
+          }
+          .ant-table-tbody > tr > td {
+            padding: 8px 4px !important;
+            font-size: 11px;
+          }
+          .ant-space {
+            flex-wrap: wrap;
+            gap: 8px !important;
+          }
+        }
+      `}</style>
     </MainLayout>
   );
 }

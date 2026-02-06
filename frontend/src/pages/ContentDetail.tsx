@@ -397,6 +397,42 @@ function ContentDetail() {
           })()
         )}
       </Card>
+      <style>{`
+        @media (max-width: 767px) {
+          .ant-card {
+            margin-bottom: 12px;
+          }
+          .ant-card-head {
+            padding: 12px 16px;
+          }
+          .ant-card-body {
+            padding: 12px;
+          }
+          .ant-descriptions-item-label,
+          .ant-descriptions-item-content {
+            padding: 6px 8px !important;
+            font-size: 12px;
+          }
+          .ant-image {
+            width: 100% !important;
+            max-width: 100%;
+          }
+          .ant-image-img {
+            width: 100% !important;
+            height: auto !important;
+          }
+          pre {
+            font-size: 11px;
+            max-height: 300px;
+          }
+          .ant-space {
+            gap: 8px !important;
+          }
+          .ant-space-wrap {
+            flex-wrap: wrap;
+          }
+        }
+      `}</style>
     </MainLayout>
   );
 }

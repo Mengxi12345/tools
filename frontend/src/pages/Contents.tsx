@@ -1078,6 +1078,68 @@ function Contents() {
         .contents-preview-modal-content { font-size: 14px; line-height: 1.7; color: #262626; white-space: pre-wrap; word-break: break-word; }
         .contents-table .ant-table-container table { border-radius: 0; }
         .contents-table-pagination { padding: 16px 20px !important; margin: 0 !important; }
+        
+        @media (max-width: 767px) {
+          .contents-page--premium {
+            padding: 0 4px 16px;
+          }
+          .contents-page__header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+          }
+          .contents-page__subtitle {
+            font-size: var(--text-body-sm-size);
+          }
+          .contents-page__filter-card {
+            margin-bottom: 12px;
+          }
+          .contents-page__filter-card .ant-card-body {
+            padding: 12px;
+          }
+          .contents-page__select {
+            width: 100% !important;
+          }
+          .contents-timeline-card {
+            margin-bottom: 8px;
+          }
+          .contents-timeline-card .ant-card-body {
+            padding: 12px !important;
+          }
+          .content-timeline-card__title {
+            font-size: var(--text-body-sm-size);
+            margin-bottom: 8px;
+          }
+          .content-timeline-card__meta {
+            flex-wrap: wrap;
+            gap: 6px;
+            font-size: 11px;
+          }
+          .content-timeline-card__actions {
+            width: 100%;
+            margin-top: 8px;
+            justify-content: flex-end;
+          }
+          .contents-table-card .ant-card-body {
+            padding: 0;
+          }
+          .contents-table {
+            font-size: 12px;
+          }
+          .contents-table .ant-table-thead > tr > th {
+            padding: 8px 4px !important;
+            font-size: 11px;
+          }
+          .contents-table .ant-table-tbody > tr > td {
+            padding: 8px 4px !important;
+            font-size: 11px;
+          }
+          .contents-preview-modal-body {
+            max-height: 50vh;
+          }
+        }
       `}</style>
     </MainLayout>
   );

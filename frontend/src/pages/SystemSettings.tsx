@@ -131,6 +131,31 @@ function SystemSettings() {
           </Space>
         </Card>
       </div>
+      <style>{`
+        @media (max-width: 767px) {
+          .ant-card {
+            margin-bottom: 12px;
+          }
+          .ant-card-head {
+            padding: 12px 16px;
+          }
+          .ant-card-body {
+            padding: 12px;
+          }
+          .ant-space {
+            flex-wrap: wrap;
+            gap: 8px !important;
+          }
+          .ant-space-item {
+            flex: 1;
+            min-width: 0;
+          }
+          .ant-space-item span {
+            font-size: 13px;
+            word-break: break-word;
+          }
+        }
+      `}</style>
     </MainLayout>
   );
 }

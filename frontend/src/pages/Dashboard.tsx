@@ -776,6 +776,82 @@ function Dashboard() {
           padding: 0 2px;
         }
         .dashboard-latest-box__btn.ant-btn:hover { color: var(--color-primary); }
+        
+        @media (max-width: 767px) {
+          .dashboard-page {
+            padding: 0;
+          }
+          .dashboard-header {
+            padding: var(--space-md);
+            margin-bottom: var(--space-md);
+          }
+          .dashboard-header__top {
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+          }
+          .dashboard-title {
+            font-size: var(--text-h2-size);
+          }
+          .dashboard-subtitle {
+            display: none;
+          }
+          .dashboard-refresh-btn {
+            margin-left: 0;
+            flex: 1;
+          }
+          .dashboard-header__stats {
+            gap: var(--space-sm);
+            flex-wrap: wrap;
+          }
+          .dashboard-stat-item {
+            flex: 1;
+            min-width: calc(50% - var(--space-sm));
+            padding: var(--space-xs) var(--space-sm);
+          }
+          .dashboard-stat-item .dashboard-stat-icon {
+            width: 24px;
+            height: 24px;
+            font-size: 12px;
+          }
+          .dashboard-stat-item .dashboard-stat-value {
+            font-size: var(--text-body-size);
+          }
+          .dashboard-header__actions {
+            margin-left: 0;
+            width: 100%;
+            justify-content: space-between;
+            margin-top: var(--space-sm);
+          }
+          .dashboard-bento {
+            grid-template-columns: 1fr;
+            gap: var(--space-md);
+          }
+          .dashboard-bento__hero,
+          .dashboard-bento__side {
+            grid-column: span 1;
+          }
+          .dashboard-grid {
+            grid-template-columns: 1fr;
+            gap: var(--space-md);
+          }
+          .dashboard-section__head {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: var(--space-sm);
+          }
+          .dashboard-author-column__head {
+            padding: var(--space-sm) var(--space-md);
+          }
+          .dashboard-article-card {
+            padding: var(--space-sm) var(--space-md);
+          }
+          .dashboard-article-card__meta {
+            font-size: 10px;
+          }
+          .dashboard-latest-box__scroll {
+            height: 140px;
+          }
+        }
       `}</style>
     </MainLayout>
   );

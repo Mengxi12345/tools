@@ -20,3 +20,68 @@ body {
   width: 100%;
   height: 100vh;
 }
+
+/* ---------- 响应式断点 ---------- */
+@media (max-width: 767px) {
+  :root {
+    --text-h1-size: 1.5rem;   /* 24px */
+    --text-h2-size: 1.25rem;   /* 20px */
+    --text-h3-size: 1rem;      /* 16px */
+    --text-body-size: 0.9375rem; /* 15px */
+    --text-body-sm-size: 0.8125rem; /* 13px */
+    
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 12px;
+    --space-lg: 16px;
+    --space-xl: 24px;
+    --space-2xl: 32px;
+  }
+  
+  /* 表格响应式 */
+  .ant-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .ant-table {
+    min-width: 600px;
+  }
+  
+  /* 卡片间距优化 */
+  .ant-card {
+    margin-bottom: var(--space-md) !important;
+  }
+  
+  /* 按钮组优化 */
+  .ant-space {
+    flex-wrap: wrap;
+  }
+  
+  /* 表单优化 */
+  .ant-form-item {
+    margin-bottom: var(--space-md);
+  }
+  
+  /* 描述列表优化 */
+  .ant-descriptions-item-label,
+  .ant-descriptions-item-content {
+    padding: var(--space-xs) var(--space-sm) !important;
+    font-size: var(--text-body-sm-size);
+  }
+  
+  /* 模态框优化 */
+  .ant-modal {
+    margin: var(--space-md);
+    max-width: calc(100vw - var(--space-md) * 2);
+  }
+  
+  .ant-modal-content {
+    padding: var(--space-md);
+  }
+  
+  /* 抽屉优化 */
+  .ant-drawer-content-wrapper {
+    max-width: 85vw;
+  }
+}

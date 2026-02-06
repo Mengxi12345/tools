@@ -722,6 +722,46 @@ function Users() {
         .users-table-actions { display: flex; flex-wrap: wrap; gap: 0; }
         .users-table-action-btn { padding: 0 6px; font-size: 12px; }
         .users-table-pagination { padding: 16px 20px !important; margin: 0 !important; }
+        
+        @media (max-width: 767px) {
+          .users-page--premium {
+            padding: 0 4px 16px;
+          }
+          .users-page__header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+          }
+          .users-page__title {
+            font-size: 20px;
+          }
+          .users-page__subtitle {
+            font-size: var(--text-body-sm-size);
+          }
+          .users-table-card .ant-card-body {
+            padding: 0;
+          }
+          .users-table {
+            font-size: 12px;
+          }
+          .users-table .ant-table-thead > tr > th {
+            padding: 8px 4px !important;
+            font-size: 11px;
+          }
+          .users-table .ant-table-tbody > tr > td {
+            padding: 8px 4px !important;
+            font-size: 11px;
+          }
+          .users-table-user-cell {
+            gap: 8px;
+          }
+          .users-table-actions {
+            flex-direction: column;
+            gap: 4px;
+          }
+        }
       `}</style>
     </MainLayout>
   );
