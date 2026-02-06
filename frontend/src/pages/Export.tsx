@@ -577,6 +577,26 @@ function Export() {
                 },
               },
               {
+                title: '文件名',
+                dataIndex: 'filePath',
+                key: 'filePath',
+                width: 250,
+                render: (filePath: string, record: any) => {
+                  if (!filePath) {
+                    return <span style={{ color: '#999' }}>未生成</span>;
+                  }
+                  // 从完整路径中提取文件名
+                  const fileName = filePath.replace(/^.*[/\\]/, '');
+                  return (
+                    <Tooltip title={filePath}>
+                      <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+                        {fileName}
+                      </span>
+                    </Tooltip>
+                  );
+                },
+              },
+              {
                 title: '操作',
                 key: 'action',
                 width: 220,
