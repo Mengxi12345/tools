@@ -121,9 +121,8 @@ export const userApi = {
   },
   /** 从平台拉取用户头像与简介并更新（仅 TimeStore 等支持 profile 的平台有效） */
   refreshProfile: (id: string) => apiClient.post<ApiResponse<any>>(`/users/${id}/refresh-profile`),
-  /** options.fetchMode: 'fast' 快速拉取（单页少量），'normal' 完整拉取 */
-  fetchContent: (id: string, options?: { startTime?: string; endTime?: string; fetchMode?: 'fast' | 'normal' }) =>
-    apiClient.post<ApiResponse<any>>(`/users/${id}/fetch`, options ?? {}),
+  /** 刷新用户内容（完整拉取，逐页直至无数据） */
+  fetchContent: (id: string) => apiClient.post<ApiResponse<any>>(`/users/${id}/fetch`),
   getFetchHistory: (id: string, params?: { page?: number; size?: number }) =>
     apiClient.get<ApiResponse<any>>(`/users/${id}/fetch-history`, { params }),
   /** 批量获取各用户的文章总数（用于列表展示）。需用 ids=uuid1&ids=uuid2 格式，Spring 才能绑定 List */
@@ -188,6 +187,13 @@ export const taskApi = {
   /** 定时任务状态详情（含执行周期 interval） */
   getScheduleStatusDetail: () =>
     apiClient.get<ApiResponse<{ isEnabled?: boolean; interval?: string; [k: string]: any }>>('/tasks/schedule/status/detail'),
+  /** 全局附件下载开关状态 */
+  getContentAssetDownloadStatus: () =>
+    apiClient.get<ApiResponse<{ enabled: boolean }>>('/tasks/schedule/content-asset-download'),
+  enableContentAssetDownload: () =>
+    apiClient.put<ApiResponse<void>>('/tasks/schedule/content-asset-download/enable'),
+  disableContentAssetDownload: () =>
+    apiClient.put<ApiResponse<void>>('/tasks/schedule/content-asset-download/disable'),
   enableSchedule: () => apiClient.put<ApiResponse<void>>('/tasks/schedule/enable'),
   disableSchedule: () => apiClient.put<ApiResponse<void>>('/tasks/schedule/disable'),
   enableUserSchedule: (userId: string) => 

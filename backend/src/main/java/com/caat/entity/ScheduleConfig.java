@@ -36,6 +36,14 @@ public class ScheduleConfig {
     @Column(name = "cron_expression")
     private String cronExpression; // Cron 表达式，可选
 
+    /**
+     * 全局附件下载开关：
+     * - 仅当 type = GLOBAL 时有效；
+     * - null 表示使用默认值 true（保持兼容老数据）。
+     */
+    @Column(name = "enable_attachment_download")
+    private Boolean enableAttachmentDownload;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

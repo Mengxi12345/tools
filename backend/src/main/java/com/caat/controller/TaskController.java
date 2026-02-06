@@ -44,6 +44,26 @@ public class TaskController {
     public ApiResponse<Map<String, Object>> getScheduleStatusDetail() {
         return ApiResponse.success(scheduleService.getScheduleStatusDetail());
     }
+
+    @Operation(summary = "获取全局附件下载开关状态", description = "返回是否启用内容附件（图片、文件）下载到本地")
+    @GetMapping("/schedule/content-asset-download")
+    public ApiResponse<Map<String, Boolean>> getContentAssetDownloadStatus() {
+        return ApiResponse.success(Map.of("enabled", scheduleService.isContentAssetDownloadEnabled()));
+    }
+
+    @Operation(summary = "启用全局附件下载", description = "启用内容附件（图片、文件）下载到本地并使用本地地址")
+    @PutMapping("/schedule/content-asset-download/enable")
+    public ApiResponse<Void> enableContentAssetDownload() {
+        scheduleService.setContentAssetDownloadEnabled(true);
+        return ApiResponse.success(null);
+    }
+
+    @Operation(summary = "禁用全局附件下载", description = "关闭内容附件下载，直接使用平台原始地址")
+    @PutMapping("/schedule/content-asset-download/disable")
+    public ApiResponse<Void> disableContentAssetDownload() {
+        scheduleService.setContentAssetDownloadEnabled(false);
+        return ApiResponse.success(null);
+    }
     
     @Operation(summary = "启用全局定时任务", description = "启用所有定时拉取任务")
     @PutMapping("/schedule/enable")

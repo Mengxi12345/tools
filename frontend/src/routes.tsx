@@ -12,6 +12,7 @@ const Users = lazy(() => import('./pages/Users'))
 const Contents = lazy(() => import('./pages/Contents'))
 const ContentDetail = lazy(() => import('./pages/ContentDetail'))
 const Settings = lazy(() => import('./pages/Settings'))
+const SystemSettings = lazy(() => import('./pages/SystemSettings'))
 const Tags = lazy(() => import('./pages/Tags'))
 const Groups = lazy(() => import('./pages/Groups'))
 const Export = lazy(() => import('./pages/Export'))
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="/analytics" element={<RequireAuth><Analytics /></RequireAuth>} />
         <Route path="/notification-rules" element={<RequireAuth><Notifications /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+        <Route path="/system-settings" element={<RequireAuth><SystemSettings /></RequireAuth>} />
         <Route path="/tags" element={<RequireAuth><Tags /></RequireAuth>} />
       </Routes>
     </Suspense>

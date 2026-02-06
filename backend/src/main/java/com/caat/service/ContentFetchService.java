@@ -55,29 +55,9 @@ public class ContentFetchService {
     private final NotificationService notificationService;
     private final ContentAssetService contentAssetService;
     private final ZsxqFileService zsxqFileService;
+    private final FetchTaskProgressUpdater fetchTaskProgressUpdater;
+    private final ScheduleService scheduleService;
 
-    /**
-     * 平台资产处理策略：用于在保存内容前根据不同平台处理图片、附件等资产。
-     */
-    private interface PlatformAssetProcessor {
-        void process(PlatformContent platformContent,
-                     Platform platform,
-                     TrackedUser user,
-                     Content content,
-                     Map<String, Object> metadataMap);
-    }
-
-    /**
-     * 按平台类型（不区分大小写）注册的资产处理策略。
-     */
-    private final Map<String, PlatformAssetProcessor> platformAssetProcessors = new HashMap<>();
-
-    {
-        // 知识星球：下载图片与附件到本地，并写入元数据
-        platformAssetProcessors.put("ZSXQ", this::processZsxqAssets);
-        // TimeStore：下载正文与媒体中的图片到本地，并替换 body 与 mediaUrls
-        platformAssetProcessors.put("TIMESTORE", this::processTimestoreAssets);
-    }
 
     /** 用于单条保存时开启新事务，避免一条失败导致整批回滚（setter 注入打破循环依赖） */
     private ContentFetchService self;
@@ -88,137 +68,92 @@ public class ContentFetchService {
         this.self = self;
     }
     
-    /**
-     * 手动刷新用户内容（异步执行）
-     * @param userId 用户ID
-     * @param startTime 开始时间（可为null，使用最后拉取时间）
-     * @param endTime 结束时间（可为null，使用当前时间）
-     * @param fetchMode "fast"=快速（单页少量），"normal"=完整
-     * @param taskId 已创建的任务ID（可为null，会创建新任务）
-     */
     @Async
     @Transactional
-    public void fetchUserContentAsync(UUID userId, LocalDateTime startTime, LocalDateTime endTime, String fetchMode, UUID taskId) {
+    public void fetchUserContentAsync(UUID userId, LocalDateTime startTime, LocalDateTime endTime, UUID taskId) {
         TrackedUser user = trackedUserRepository.findById(userId).orElse(null);
         if (user == null) {
             markTaskFailed(taskId, "用户不存在");
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        
-        // 获取或创建刷新任务（不做速率限制，点击即拉取并保存）
-        FetchTask task;
-        if (taskId != null) {
-            task = fetchTaskRepository.findById(taskId).orElse(null);
-            if (task == null) {
-                throw new BusinessException(ErrorCode.FETCH_TASK_NOT_FOUND);
-            }
-        } else {
-            task = new FetchTask();
-            task.setUser(user);
-            task.setTaskType(FetchTask.TaskType.MANUAL);
-            task.setStartTime(startTime);
-            task.setEndTime(endTime != null ? endTime : LocalDateTime.now());
-            task.setStatus(FetchTask.TaskStatus.PENDING);
-            task = fetchTaskRepository.save(task);
-        }
-        
+        FetchTask task = getOrCreateTask(user, startTime, endTime, taskId);
+        UUID effectiveTaskId = task.getId();
         try {
-            task.setStatus(FetchTask.TaskStatus.RUNNING);
-            task.setStartedAt(LocalDateTime.now());
-            task.setProgress(0);
-            task.setFetchedCount(0);
-            fetchTaskRepository.save(task);
-            
-            // 完整拉取且未传日期：不传 start/end；若用户已有文章则按已有数量估算起始页向前拉取，拉完后再拉「最新文章时间～现在」
+            fetchTaskProgressUpdater.updateStatusRunning(effectiveTaskId, LocalDateTime.now());
             boolean fullFetchNoDate = (startTime == null && endTime == null);
-            LocalDateTime effectiveStart = startTime;
-            LocalDateTime effectiveEnd = endTime;
-            if (fullFetchNoDate) {
-                log.info("完整拉取: 不传时间范围，逐页拉取全部文章 userId={}", userId);
-                task.setStartTime(null);
-                task.setEndTime(null);
-                fetchTaskRepository.save(task);
-            } else {
-                if (effectiveStart == null) {
-                    effectiveStart = contentRepository.findMaxPublishedAtByUserId(userId).orElse(null);
-                    if (effectiveStart != null) {
-                        log.info("增量拉取: 用户已有存储文章，从最后发布时间至当前 userId={}, startTime={}", userId, effectiveStart);
-                    } else {
-                        log.info("全量拉取: 用户无存储文章 userId={}", userId);
-                    }
-                    task.setStartTime(effectiveStart);
-                    fetchTaskRepository.save(task);
-                }
-            }
-            
-            // 获取平台适配器
+            var timeRange = resolveTimeRange(userId, startTime, endTime, fullFetchNoDate);
+            fetchTaskProgressUpdater.updateStartEndTime(effectiveTaskId, timeRange.start(), timeRange.end());
+
             PlatformAdapter adapter = adapterFactory.getAdapter(user.getPlatform().getType());
-            
-            // 解析平台配置，并合并平台级 apiBaseUrl 供适配器使用（如 TimeStore）
             Map<String, Object> config = PlatformConfigUtil.mergePlatformConfig(
                 user.getPlatform(),
                 PlatformConfigUtil.parseConfig(objectMapper, user.getPlatform().getConfig())
             );
-            
-            int limit = "fast".equalsIgnoreCase(fetchMode) ? 20 : 150; // normal 时单页可到 100~150
-            if ("normal".equalsIgnoreCase(fetchMode)) {
-                log.info("完整拉取模式: 逐页拉取并实时保存、更新进度 userId={}, platform={}", userId, user.getPlatform().getType());
-            }
-            
-            // 知识星球：两阶段拉取（第一步用 end_time 向后取旧文章+随机等待+失败重试5次；第二步取最新几页直到遇到第一步时的最新文章即停）
-            int totalSaved;
-            if ("ZSXQ".equalsIgnoreCase(user.getPlatform().getType()) && fullFetchNoDate) {
-                totalSaved = runZsxqTwoPhaseFetch(adapter, config, user, task, limit, userId);
-            } else {
-                Long existingCount = fullFetchNoDate ? contentRepository.countByUserId(userId) : null;
-                boolean hadExistingContent = (existingCount != null && existingCount > 0);
-                String cursor = null;
-                if (hadExistingContent && fullFetchNoDate) {
-                    int estimatedPageSize = 100;
-                    int startPage = (int) Math.max(1, (existingCount / estimatedPageSize) + 1);
-                    cursor = String.valueOf(startPage);
-                    log.info("完整拉取(用户已有文章): 从约第 {} 页开始向前拉取 userId={}, 已有文章数={}", cursor, userId, existingCount);
-                }
-                log.info("开始拉取用户内容: userId={}, platform={}, startTime={}, endTime={}, limit={}, initialCursor={}",
-                    userId, user.getPlatform().getType(), effectiveStart, effectiveEnd, limit, cursor);
-                totalSaved = runPaginationPhase(adapter, config, user, task, effectiveStart, effectiveEnd, cursor, limit, 0, userId);
-                if (fullFetchNoDate && hadExistingContent) {
-                    LocalDateTime maxPub = contentRepository.findMaxPublishedAtByUserId(userId).orElse(null);
-                    if (maxPub != null) {
-                        log.info("完整拉取(用户已有文章): 再拉取 最新文章时间～现在 userId={}, startTime={}", userId, maxPub);
-                        totalSaved += runPaginationPhase(adapter, config, user, task, maxPub, LocalDateTime.now(), null, limit, totalSaved, userId);
-                    }
-                }
-            }
-            
-            // 更新任务状态
-            task.setStatus(FetchTask.TaskStatus.COMPLETED);
-            task.setCompletedAt(LocalDateTime.now());
-            task.setProgress(100);
-            task.setFetchedCount(totalSaved);
-            task.setTotalCount(totalSaved);
-            fetchTaskRepository.save(task);
-            
-            // 更新用户最后拉取时间
+
+            String platformType = user.getPlatform().getType().toUpperCase();
+
+            int totalSaved = switch (platformType) {
+                case "ZSXQ" -> runZsxqTwoPhaseFetch(adapter, config, user, task, userId);
+                default -> runGenericPagination(adapter, config, user, task, timeRange.start(), timeRange.end(), 100, userId);
+            };
+
+            fetchTaskProgressUpdater.updateCompleted(effectiveTaskId, LocalDateTime.now(), totalSaved, totalSaved);
             user.setLastFetchedAt(LocalDateTime.now());
             trackedUserRepository.save(user);
-            
             log.info("拉取内容完成: userId={}, savedCount={}", userId, totalSaved);
-            
         } catch (BusinessException e) {
             log.error("拉取内容失败（业务异常）: userId={}", userId, e);
-            task.setStatus(FetchTask.TaskStatus.FAILED);
-            task.setErrorMessage(e.getMessage());
-            task.setCompletedAt(LocalDateTime.now());
-            fetchTaskRepository.save(task);
+            fetchTaskProgressUpdater.updateFailed(effectiveTaskId, LocalDateTime.now(), e.getMessage());
             throw e;
         } catch (Exception e) {
             log.error("拉取内容失败: userId={}", userId, e);
-            task.setStatus(FetchTask.TaskStatus.FAILED);
-            task.setErrorMessage(e.getMessage());
-            task.setCompletedAt(LocalDateTime.now());
-            fetchTaskRepository.save(task);
+            fetchTaskProgressUpdater.updateFailed(effectiveTaskId, LocalDateTime.now(), e.getMessage());
         }
+    }
+
+    private FetchTask getOrCreateTask(TrackedUser user, LocalDateTime startTime, LocalDateTime endTime, UUID taskId) {
+        if (taskId != null) {
+            return fetchTaskRepository.findById(taskId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.FETCH_TASK_NOT_FOUND));
+        }
+        FetchTask task = new FetchTask();
+        task.setUser(user);
+        task.setTaskType(FetchTask.TaskType.MANUAL);
+        task.setStartTime(startTime);
+        task.setEndTime(endTime != null ? endTime : LocalDateTime.now());
+        return fetchTaskRepository.save(task);
+    }
+
+    private record TimeRange(LocalDateTime start, LocalDateTime end) {}
+
+    private TimeRange resolveTimeRange(UUID userId, LocalDateTime startTime, LocalDateTime endTime, boolean fullFetchNoDate) {
+        if (fullFetchNoDate) {
+            return new TimeRange(null, null);
+        }
+        LocalDateTime effectiveStart = startTime != null ? startTime
+            : contentRepository.findMaxPublishedAtByUserId(userId).orElse(null);
+        return new TimeRange(effectiveStart, endTime);
+    }
+
+    /** 通用分页拉取：支持完整拉取时的两阶段（先向前补历史，再拉最新） */
+    private int runGenericPagination(PlatformAdapter adapter, Map<String, Object> config, TrackedUser user,
+                                    FetchTask task, LocalDateTime effectiveStart, LocalDateTime effectiveEnd,
+                                    int limit, UUID userId) throws Exception {
+        boolean fullFetchNoDate = (effectiveStart == null && effectiveEnd == null);
+        Long existingCount = fullFetchNoDate ? contentRepository.countByUserId(userId) : null;
+        boolean hadExistingContent = (existingCount != null && existingCount > 0);
+        String cursor = hadExistingContent && fullFetchNoDate
+            ? String.valueOf(Math.max(1, (existingCount / 100) + 1))
+            : null;
+
+        int totalSaved = runPaginationPhase(adapter, config, user, task, effectiveStart, effectiveEnd, cursor, limit, 0, userId);
+        if (fullFetchNoDate && hadExistingContent) {
+            LocalDateTime maxPub = contentRepository.findMaxPublishedAtByUserId(userId).orElse(null);
+            if (maxPub != null) {
+                totalSaved += runPaginationPhase(adapter, config, user, task, maxPub, LocalDateTime.now(), null, limit, totalSaved, userId);
+            }
+        }
+        return totalSaved;
     }
     
     /**
@@ -227,10 +162,11 @@ public class ContentFetchService {
      * 二、用户已有文章：第一页不带 end_time 拉取 20 条，按条顺序处理，若某条已存在（contentId/hash）则只保存本页中该条之前的新文章并停止；若本页无重复则用本页第 20 条（时间最久）的 create_time 作为 end_time 拉取下一页，同样按条判断，一旦遇到重复则保存本页此前新文章并停止；重复直到某一页出现重复为止。
      */
     private int runZsxqTwoPhaseFetch(PlatformAdapter adapter, Map<String, Object> config, TrackedUser user,
-                                    FetchTask task, int limit, UUID userId) throws Exception {
+                                    FetchTask task, UUID userId) throws Exception {
         long existingCount = contentRepository.countByUserId(userId);
         boolean hasExistingContent = (existingCount > 0);
 
+        final int limit = 20;
         final int retryMax = 5;
         final int delaySecMin = 2;
         final int delaySecMax = 5;
@@ -300,17 +236,13 @@ public class ContentFetchService {
                 }
             }
 
-            task.setFetchedCount(savedInPhase);
-            task.setTotalCount(savedInPhase);
-            task.setProgress(result.isHasMore() ? Math.min(99, 99) : 100);
-            fetchTaskRepository.save(task);
+            fetchTaskProgressUpdater.updateProgress(task.getId(), result.isHasMore() ? 99 : 100, savedInPhase, savedInPhase);
 
             if (stopDueToDuplicate || !result.isHasMore()) break;
             cursor = result.getNextCursor();
         }
 
-        task.setProgress(100);
-        fetchTaskRepository.save(task);
+        fetchTaskProgressUpdater.updateProgress(task.getId(), 100, savedInPhase, savedInPhase);
         log.info("知识星球拉取结束: userId={}, 保存={}", userId, savedInPhase);
         return savedInPhase;
     }
@@ -383,10 +315,9 @@ public class ContentFetchService {
             }
             savedInPhase += savedThisPage;
             log.info("[保存排查] 第 {} 页保存 {} 条, 本阶段累计 {} 条", pageNum, savedThisPage, savedInPhase);
-            task.setFetchedCount(totalSavedOffset + savedInPhase);
-            task.setTotalCount(totalSavedOffset + savedInPhase);
-            task.setProgress(result.isHasMore() ? Math.min(99, totalSavedOffset + savedInPhase > 0 ? 99 : 0) : 100);
-            fetchTaskRepository.save(task);
+            int totalSoFar = totalSavedOffset + savedInPhase;
+            int progress = result.isHasMore() ? Math.min(99, totalSoFar > 0 ? 99 : 0) : 100;
+            fetchTaskProgressUpdater.updateProgress(task.getId(), progress, totalSoFar, totalSoFar);
             if (!result.isHasMore()) break;
             cursor = result.getNextCursor();
             Thread.sleep(2000 + ThreadLocalRandom.current().nextInt(4000));
@@ -472,24 +403,23 @@ public class ContentFetchService {
         return saved;
     }
 
-    /**
-     * 根据平台类型选择并执行资产处理策略。
-     */
     private void applyPlatformAssetProcessor(PlatformContent platformContent,
                                              Platform platform,
                                              TrackedUser user,
                                              Content content,
                                              Map<String, Object> metadataMap) {
-        if (platform == null || platform.getType() == null) {
+        // 关闭附件下载时，直接保留平台原始 URL，不做任何本地下载与替换
+        if (!scheduleService.isContentAssetDownloadEnabled()) {
             return;
         }
+        if (platform == null || platform.getType() == null) return;
         String type = platform.getType().toUpperCase();
-        PlatformAssetProcessor processor = platformAssetProcessors.get(type);
-        if (processor == null) {
-            return;
-        }
         try {
-            processor.process(platformContent, platform, user, content, metadataMap);
+            switch (type) {
+                case "ZSXQ" -> processZsxqAssets(platformContent, platform, user, content, metadataMap);
+                case "TIMESTORE" -> processTimestoreAssets(platformContent, platform, user, content, metadataMap);
+                default -> { /* 无平台特定处理 */ }
+            }
         } catch (Exception e) {
             log.warn("平台资产处理失败，将使用原始数据: platformType={}, contentId={}, error={}",
                 platform.getType(), platformContent.getContentId(), e.getMessage());

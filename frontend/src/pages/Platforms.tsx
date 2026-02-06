@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Tag, Avatar, Upload } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Tag, Avatar, Upload, Card, Typography } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, ReloadOutlined, UserOutlined, UploadOutlined, ToolOutlined } from '@ant-design/icons';
 import { platformApi, contentApi, getApiErrorMessage, getPlatformAvatarSrc } from '../services/api';
 import MainLayout from '../components/Layout/MainLayout';
@@ -14,6 +14,8 @@ interface Platform {
   status: string;
   createdAt: string;
 }
+
+const { Text } = Typography;
 
 function Platforms() {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
@@ -175,22 +177,22 @@ function Platforms() {
       title: '平台',
       key: 'platform',
       render: (_: any, record: Platform) => (
-        <Space>
+        <Space size={8}>
           <Avatar
             src={getPlatformAvatarSrc(record.avatarUrl)}
             icon={!record.avatarUrl ? <UserOutlined /> : undefined}
             shape="square"
-            size={36}
+            size={28}
             alt={record.name}
           />
-          <span>{record.name}</span>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span>{record.name}</span>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {record.type}
+            </Text>
+          </div>
         </Space>
       ),
-    },
-    {
-      title: '平台类型',
-      dataIndex: 'type',
-      key: 'type',
     },
     {
       title: 'API地址',
@@ -217,31 +219,42 @@ function Platforms() {
     {
       title: '操作',
       key: 'action',
+      width: 120,
       render: (_: any, record: Platform) => (
-        <Space>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Button
-            type="link"
+            type="text"
+            size="small"
             icon={<CheckCircleOutlined />}
             onClick={() => handleTestConnection(record.id)}
           >
             测试连接
           </Button>
           <Button
-            type="link"
+            type="text"
+            size="small"
             icon={<EditOutlined />}
             onClick={() => handleEdit(record)}
           >
-            编辑
+            编辑平台
           </Button>
           <Popconfirm
             title="确定要删除这个平台吗？"
             onConfirm={() => handleDelete(record.id)}
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
           >
-            <Button type="link" danger icon={<DeleteOutlined />}>
-              删除
+            <Button
+              type="text"
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+            >
+              删除平台
             </Button>
           </Popconfirm>
-        </Space>
+        </div>
       ),
     },
   ];
@@ -249,27 +262,22 @@ function Platforms() {
   return (
     <MainLayout>
       <div>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0 }}>平台管理</h2>
+        {/* 顶部标题区 */}
+        <div
+          style={{
+            marginBottom: 24,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0 }}>平台管理</h2>
+            <Text type="secondary">
+              统一管理内容来源平台，配置连接信息与状态。
+            </Text>
+          </div>
           <Space>
-            {platforms.some((p) => p.type === 'TIMESTORE') && (
-              <>
-                <Button
-                  icon={<ToolOutlined />}
-                  onClick={handleFixTimestoreImages}
-                  loading={fixingImages}
-                >
-                  修复 TimeStore 图片
-                </Button>
-                <Button
-                  icon={<ToolOutlined />}
-                  onClick={handleFixTimestoreEncrypted}
-                  loading={fixingEncrypted}
-                >
-                  修复 TimeStore 加密文章
-                </Button>
-              </>
-            )}
             <Button icon={<ReloadOutlined />} onClick={loadPlatforms} loading={loading}>
               刷新
             </Button>
@@ -279,12 +287,46 @@ function Platforms() {
           </Space>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={platforms}
-          rowKey="id"
-          loading={loading}
-        />
+        {/* TimeStore 专用工具区 */}
+        {platforms.some((p) => p.type === 'TIMESTORE') && (
+          <Card
+            style={{ marginBottom: 16 }}
+            title="TimeStore 工具"
+            size="small"
+          >
+            <Space wrap>
+              <Button
+                icon={<ToolOutlined />}
+                onClick={handleFixTimestoreImages}
+                loading={fixingImages}
+              >
+                修复 TimeStore 图片
+              </Button>
+              <Button
+                icon={<ToolOutlined />}
+                onClick={handleFixTimestoreEncrypted}
+                loading={fixingEncrypted}
+              >
+                修复 TimeStore 加密文章
+              </Button>
+            </Space>
+          </Card>
+        )}
+
+        {/* 平台列表区 */}
+        <Card
+          title={`平台列表（${platforms.length}）`}
+          bodyStyle={{ paddingTop: 8 }}
+        >
+          <Table
+            columns={columns}
+            dataSource={platforms}
+            rowKey="id"
+            loading={loading}
+            size="small"
+            pagination={{ pageSize: 20, showSizeChanger: false }}
+          />
+        </Card>
 
         <Modal
           title={editingPlatform ? '编辑平台' : '添加平台'}

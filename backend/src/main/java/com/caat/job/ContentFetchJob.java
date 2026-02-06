@@ -84,12 +84,11 @@ public class ContentFetchJob implements Job {
                     task.setStatus(FetchTask.TaskStatus.PENDING);
                     task = fetchTaskRepository.save(task);
                     
-                    // 异步执行拉取任务（传入已创建的任务ID，定时任务使用完整拉取）
+                    // 异步执行拉取任务（传入已创建的任务ID）
                     contentFetchService.fetchUserContentAsync(
                         user.getId(),
                         startTime,
                         endTime,
-                        "normal",
                         task.getId()
                     );
                     

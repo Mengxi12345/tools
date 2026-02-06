@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, Popconfirm, Switch, Radio, DatePicker, Progress, Upload } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, Popconfirm, Switch, Progress, Upload } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, UserOutlined, UserAddOutlined, TeamOutlined, UploadOutlined } from '@ant-design/icons';
 import { Avatar, Typography } from 'antd';
 import { userApi, platformApi, taskApi, groupApi, getApiErrorMessage, getAvatarSrc, getPlatformAvatarSrc } from '../services/api';
@@ -40,10 +40,6 @@ function Users() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [refreshModalVisible, setRefreshModalVisible] = useState(false);
   const [refreshUser, setRefreshUser] = useState<User | null>(null);
-  const [refreshMode, setRefreshMode] = useState<'default' | 'custom'>('default');
-  const [refreshFetchMode, setRefreshFetchMode] = useState<'fast' | 'normal'>('normal');
-  const [refreshStartTime, setRefreshStartTime] = useState<any>(null);
-  const [refreshEndTime, setRefreshEndTime] = useState<any>(null);
   const [progressModalVisible, setProgressModalVisible] = useState(false);
   const [currentTask, setCurrentTask] = useState<any | null>(null);
   const [currentProgress, setCurrentProgress] = useState(0);
@@ -179,9 +175,6 @@ function Users() {
   
   const openRefreshModal = (user: User) => {
     setRefreshUser(user);
-    setRefreshMode('default');
-    setRefreshStartTime(null);
-    setRefreshEndTime(null);
     setRefreshModalVisible(true);
   };
 
@@ -241,14 +234,7 @@ function Users() {
   const handleConfirmRefresh = async () => {
     if (!refreshUser) return;
     try {
-      const options: { startTime?: string; endTime?: string; fetchMode?: 'fast' | 'normal' } = {
-        fetchMode: refreshFetchMode,
-      };
-      if (refreshMode === 'custom') {
-        if (refreshStartTime) options.startTime = refreshStartTime.toISOString();
-        if (refreshEndTime) options.endTime = refreshEndTime.toISOString();
-      }
-      const response: any = await userApi.fetchContent(refreshUser.id, options);
+      const response: any = await userApi.fetchContent(refreshUser.id);
       if (response.code === 200) {
         message.success('刷新任务已提交');
         setRefreshModalVisible(false);
@@ -611,49 +597,9 @@ function Users() {
           okText="提交刷新"
         >
           <p>用户：{refreshUser?.username}</p>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>拉取速度</div>
-            <Radio.Group
-              value={refreshFetchMode}
-              onChange={(e) => setRefreshFetchMode(e.target.value)}
-              style={{ marginBottom: 8 }}
-            >
-              <Radio value="fast">快速拉取（单页约 20 条，适合试跑）</Radio>
-              <Radio value="normal">完整拉取（逐页拉取全部文章并保存）</Radio>
-            </Radio.Group>
-            {refreshFetchMode === 'normal' && (
-              <div style={{ marginBottom: 16, color: 'var(--ant-color-text-secondary)', fontSize: 12 }}>
-                将按页请求接口，直至无更多数据，全部保存到本地。
-              </div>
-            )}
-          </div>
-          <div style={{ marginBottom: 8, fontWeight: 500 }}>时间范围</div>
-          <Radio.Group
-            value={refreshMode}
-            onChange={(e) => setRefreshMode(e.target.value)}
-            style={{ marginBottom: 16 }}
-          >
-            <Radio value="default">默认（无本地文章时拉取全部，有则从最后发布时间至今）</Radio>
-            <Radio value="custom">指定时间段</Radio>
-          </Radio.Group>
-          {refreshMode === 'custom' && (
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <DatePicker
-                showTime
-                style={{ width: '100%' }}
-                value={refreshStartTime}
-                onChange={(v) => setRefreshStartTime(v)}
-                placeholder="开始时间"
-              />
-              <DatePicker
-                showTime
-                style={{ width: '100%' }}
-                value={refreshEndTime}
-                onChange={(v) => setRefreshEndTime(v)}
-                placeholder="结束时间（不选则到当前）"
-              />
-            </Space>
-          )}
+          <p style={{ color: 'var(--ant-color-text-secondary)', fontSize: 12, marginTop: 8 }}>
+            将按页请求接口，直至无更多数据，全部保存到本地。
+          </p>
         </Modal>
 
         <Modal

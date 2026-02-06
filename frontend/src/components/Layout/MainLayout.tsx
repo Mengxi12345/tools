@@ -93,6 +93,11 @@ function MainLayout({ children }: MainLayoutProps) {
       icon: <SettingOutlined />,
       label: '定时任务',
     },
+    {
+      key: '/system-settings',
+      icon: <SettingOutlined />,
+      label: '系统设置',
+    },
   ];
 
   return (

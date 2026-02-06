@@ -14,6 +14,7 @@ import com.lowagie.text.pdf.PdfDestination;
 import com.lowagie.text.pdf.PdfOutline;
 import com.lowagie.text.pdf.PdfCopy;
 import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.SimpleBookmark;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfReader;
 import com.lowagie.text.pdf.PdfWriter;
@@ -317,7 +318,7 @@ public class PdfWordExportService {
     }
 
     /**
-     * 合并多个PDF文件
+     * 合并多个PDF文件，保留各批次的目录书签并设置打开时显示目录导航栏
      */
     private ByteArrayOutputStream mergePdfFiles(List<Path> pdfFiles, ProgressCallback callback) throws IOException {
         log.info("开始合并PDF文件: 共 {} 个文件", pdfFiles.size());
@@ -326,13 +327,26 @@ public class PdfWordExportService {
         PdfCopy copy = new PdfCopy(document, baos);
         document.open();
 
+        // 设置打开 PDF 时默认显示左侧目录导航栏（书签面板）
+        copy.setViewerPreferences(PdfWriter.PageModeUseOutlines);
+
+        List<Map<String, Object>> allOutlines = new ArrayList<>();
         int totalFiles = pdfFiles.size();
         int totalPages = 0;
+
         for (int i = 0; i < pdfFiles.size(); i++) {
             Path pdfFile = pdfFiles.get(i);
             log.debug("合并第 {} 个PDF文件: {}", i + 1, pdfFile.getFileName());
             PdfReader reader = new PdfReader(pdfFile.toFile().getAbsolutePath());
             int pages = reader.getNumberOfPages();
+
+            // 提取当前 PDF 的书签，并按合并后的页码偏移
+            List<Map<String, Object>> bookmarks = SimpleBookmark.getBookmarkList(reader);
+            if (bookmarks != null && !bookmarks.isEmpty()) {
+                SimpleBookmark.shiftPageNumbersInRange(bookmarks, totalPages, null);
+                allOutlines.addAll(bookmarks);
+            }
+
             totalPages += pages;
             log.debug("第 {} 个PDF文件包含 {} 页", i + 1, pages);
             for (int page = 1; page <= pages; page++) {
@@ -340,15 +354,20 @@ public class PdfWordExportService {
             }
             copy.freeReader(reader);
             reader.close();
-            
+
             if (callback != null) {
                 int pct = 85 + (int) (10.0 * (i + 1) / totalFiles);
                 callback.onProgress(Math.min(pct, 99), "已合并 " + (i + 1) + "/" + totalFiles + " 个PDF文件（共 " + totalPages + " 页）");
             }
         }
 
+        // 将合并后的书签写入最终 PDF
+        if (!allOutlines.isEmpty()) {
+            copy.setOutlines(allOutlines);
+        }
+
         document.close();
-        log.info("PDF合并完成: 共 {} 个文件，{} 页，最终大小 {} 字节", totalFiles, totalPages, baos.size());
+        log.info("PDF合并完成: 共 {} 个文件，{} 页，书签数 {}，最终大小 {} 字节", totalFiles, totalPages, allOutlines.size(), baos.size());
         return baos;
     }
 

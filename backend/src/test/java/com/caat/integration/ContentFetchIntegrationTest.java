@@ -114,9 +114,9 @@ public class ContentFetchIntegrationTest {
         Page<Content> initialContentsPage = contentRepository.findByUserId(testUser.getId(), pageable);
         assertEquals(0, initialContentsPage.getTotalElements(), "初始状态下应没有内容");
 
-        // 4. 手动触发内容拉取（使用默认模式：从最后拉取时间至今）
+        // 4. 手动触发内容拉取（从最后拉取时间至今）
         LocalDateTime endTime = LocalDateTime.now();
-        contentFetchService.fetchUserContentAsync(testUser.getId(), null, endTime, "normal", null);
+        contentFetchService.fetchUserContentAsync(testUser.getId(), null, endTime, null);
 
         // 5. 等待异步任务完成（最多等待30秒）
         int maxWaitSeconds = 30;
@@ -180,7 +180,7 @@ public class ContentFetchIntegrationTest {
         LocalDateTime endTime = LocalDateTime.now();
 
         // 2. 触发内容拉取
-        contentFetchService.fetchUserContentAsync(testUser.getId(), startTime, endTime, "normal", null);
+        contentFetchService.fetchUserContentAsync(testUser.getId(), startTime, endTime, null);
 
         // 3. 等待异步任务完成
         int maxWaitSeconds = 30;
@@ -215,7 +215,7 @@ public class ContentFetchIntegrationTest {
     void testContentDeduplication() throws InterruptedException {
         // 1. 第一次拉取
         LocalDateTime endTime1 = LocalDateTime.now();
-        contentFetchService.fetchUserContentAsync(testUser.getId(), null, endTime1, "normal", null);
+        contentFetchService.fetchUserContentAsync(testUser.getId(), null, endTime1, null);
 
         // 等待第一次拉取完成
         Thread.sleep(5000);
@@ -225,7 +225,7 @@ public class ContentFetchIntegrationTest {
 
         // 2. 第二次拉取（应该去重）
         LocalDateTime endTime2 = LocalDateTime.now();
-        contentFetchService.fetchUserContentAsync(testUser.getId(), null, endTime2, "normal", null);
+        contentFetchService.fetchUserContentAsync(testUser.getId(), null, endTime2, null);
 
         // 等待第二次拉取完成
         Thread.sleep(5000);

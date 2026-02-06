@@ -51,6 +51,18 @@ public class ScheduleService {
             .map(ScheduleConfig::getIsEnabled)
             .orElse(true);
     }
+
+    /**
+     * 是否启用内容附件下载（全局开关）。
+     * - 仅 GLOBAL 配置上的 enableAttachmentDownload 有效；
+     * - 若为 null 或未配置，则默认视为 true。
+     */
+    public boolean isContentAssetDownloadEnabled() {
+        return scheduleConfigRepository.findByType(ScheduleConfig.ConfigType.GLOBAL)
+            .map(ScheduleConfig::getEnableAttachmentDownload)
+            .map(Boolean::booleanValue)
+            .orElse(true);
+    }
     
     /**
      * 启用/禁用全局定时任务
@@ -65,6 +77,23 @@ public class ScheduleService {
                 return scheduleConfigRepository.save(newConfig);
             });
         config.setIsEnabled(enabled);
+        scheduleConfigRepository.save(config);
+    }
+
+    /**
+     * 更新全局附件下载开关。
+     */
+    @Transactional
+    public void setContentAssetDownloadEnabled(boolean enabled) {
+        ScheduleConfig config = scheduleConfigRepository.findByType(ScheduleConfig.ConfigType.GLOBAL)
+            .orElseGet(() -> {
+                ScheduleConfig newConfig = new ScheduleConfig();
+                newConfig.setType(ScheduleConfig.ConfigType.GLOBAL);
+                newConfig.setIsEnabled(true);
+                newConfig.setEnableAttachmentDownload(enabled);
+                return scheduleConfigRepository.save(newConfig);
+            });
+        config.setEnableAttachmentDownload(enabled);
         scheduleConfigRepository.save(config);
     }
     
@@ -108,6 +137,7 @@ public class ScheduleService {
     public Map<String, Object> getScheduleStatusDetail() {
         Map<String, Object> detail = new HashMap<>();
         detail.put("isEnabled", getGlobalScheduleStatus());
+        detail.put("contentAssetDownloadEnabled", isContentAssetDownloadEnabled());
         detail.put("interval", SCHEDULE_INTERVAL_DESCRIPTION);
         detail.put("triggerName", CONTENT_FETCH_TRIGGER_NAME);
         detail.put("jobName", "contentFetchJob");

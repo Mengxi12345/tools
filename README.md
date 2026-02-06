@@ -150,6 +150,7 @@ tools/
 
 - [API 文档](docs/API_DOCUMENTATION.md)
 - [对外能力与业务逻辑总览](docs/API_CAPABILITIES_OVERVIEW.md)
+- [内容拉取流程详解](docs/CONTENT_FETCH_FLOW.md)（批量刷新、刷新内容、定时任务刷新，含各平台业务逻辑与流程图）
 - [开发指南](docs/DEVELOPMENT_GUIDE.md)
 - [部署指南](docs/DEPLOYMENT_GUIDE.md)
 - [用户手册](docs/USER_GUIDE.md)

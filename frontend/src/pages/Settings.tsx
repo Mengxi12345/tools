@@ -8,6 +8,8 @@ function useScheduleStatus() {
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleInterval, setScheduleInterval] = useState<string>('');
   const [loadingSchedule, setLoadingSchedule] = useState(false);
+  const [contentAssetDownloadEnabled, setContentAssetDownloadEnabled] = useState(true);
+  const [loadingContentAssetDownload, setLoadingContentAssetDownload] = useState(false);
   /** 各用户定时任务当前状态：userId -> isEnabled */
   const [userScheduleStatus, setUserScheduleStatus] = useState<Record<string, boolean>>({});
 
@@ -22,6 +24,11 @@ function useScheduleStatus() {
       const data = detailRes?.code === 200 ? detailRes.data : null;
       const enabled = data != null ? (data?.isEnabled ?? data === true) : true;
       setScheduleEnabled(Boolean(enabled));
+      if (data != null && typeof data.contentAssetDownloadEnabled === 'boolean') {
+        setContentAssetDownloadEnabled(data.contentAssetDownloadEnabled);
+      } else {
+        setContentAssetDownloadEnabled(true);
+      }
       if (data != null && typeof data.interval === 'string') {
         setScheduleInterval(data.interval);
       } else {
@@ -54,14 +61,36 @@ function useScheduleStatus() {
     }
   };
 
+  const handleToggleContentAssetDownload = async (enabled: boolean) => {
+    try {
+      setLoadingContentAssetDownload(true);
+      const res: any = enabled
+        ? await taskApi.enableContentAssetDownload()
+        : await taskApi.disableContentAssetDownload();
+      if (res?.code === 200) {
+        setContentAssetDownloadEnabled(enabled);
+        message.success(enabled ? '已开启文章附件下载（将下载到本地并使用本地地址）' : '已关闭文章附件下载（使用平台原始地址）');
+      } else {
+        message.error(res?.message || '操作失败');
+      }
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '操作失败'));
+    } finally {
+      setLoadingContentAssetDownload(false);
+    }
+  };
+
   return {
     scheduleEnabled,
     scheduleInterval,
     loadingSchedule,
+    contentAssetDownloadEnabled,
+    loadingContentAssetDownload,
     userScheduleStatus,
     setUserScheduleStatus,
     loadScheduleStatus,
     handleToggleGlobalSchedule,
+    handleToggleContentAssetDownload,
   };
 }
 
@@ -192,10 +221,13 @@ function Settings() {
     scheduleEnabled,
     scheduleInterval,
     loadingSchedule,
+    contentAssetDownloadEnabled,
+    loadingContentAssetDownload,
     userScheduleStatus,
     setUserScheduleStatus,
     loadScheduleStatus,
     handleToggleGlobalSchedule,
+    handleToggleContentAssetDownload,
   } = useScheduleStatus();
 
   const { users, loadUsers } = useUsers();
@@ -319,6 +351,25 @@ function Settings() {
           </Button>
         </Popconfirm>
       ),
+    },
+  ];
+
+  const globalSettingsItems = [
+    {
+      key: 'globalSchedule',
+      label: '全局定时任务',
+      description: `当前执行间隔：${scheduleInterval || '默认'}`,
+      checked: scheduleEnabled,
+      loading: loadingSchedule,
+      onChange: handleToggleGlobalSchedule,
+    },
+    {
+      key: 'contentAssetDownload',
+      label: '文章附件下载到本地',
+      description: '开启后，拉取文章时会下载图片和附件到本地并使用本地地址；关闭则保留平台原始地址。',
+      checked: contentAssetDownloadEnabled,
+      loading: loadingContentAssetDownload,
+      onChange: handleToggleContentAssetDownload,
     },
   ];
 
