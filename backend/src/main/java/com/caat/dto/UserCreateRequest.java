@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -23,6 +22,4 @@ public class UserCreateRequest {
     
     private String displayName;
     private String avatarUrl;
-    private UUID groupId;
-    private List<String> tags;
 }

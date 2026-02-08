@@ -48,20 +48,6 @@ public class TrackedUserService {
     }
     
     /**
-     * 根据标签查询用户（分页）
-     */
-    public Page<TrackedUser> getUsersByTag(String tag, Pageable pageable) {
-        return trackedUserRepository.findByTag(tag, pageable);
-    }
-    
-    /**
-     * 根据多个标签查询用户（分页）
-     */
-    public Page<TrackedUser> getUsersByTags(List<String> tags, Pageable pageable) {
-        return trackedUserRepository.findByTagsIn(tags, pageable);
-    }
-    
-    /**
      * 获取所有启用的用户
      */
     public List<TrackedUser> getActiveUsers() {
@@ -215,8 +201,6 @@ public class TrackedUserService {
         if (user.getSelfIntroduction() != null) {
             existing.setSelfIntroduction(user.getSelfIntroduction());
         }
-        existing.setGroupId(user.getGroupId());
-        existing.setTags(user.getTags());
         existing.setIsActive(user.getIsActive());
         return trackedUserRepository.save(existing);
     }

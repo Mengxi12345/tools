@@ -10,10 +10,9 @@ const Platforms = lazy(() => import('./pages/Platforms'))
 const Users = lazy(() => import('./pages/Users'))
 const Contents = lazy(() => import('./pages/Contents'))
 const ContentDetail = lazy(() => import('./pages/ContentDetail'))
+const Favorites = lazy(() => import('./pages/Favorites'))
 const Settings = lazy(() => import('./pages/Settings'))
 const SystemSettings = lazy(() => import('./pages/SystemSettings'))
-const Tags = lazy(() => import('./pages/Tags'))
-const Groups = lazy(() => import('./pages/Groups'))
 const Export = lazy(() => import('./pages/Export'))
 const Analytics = lazy(() => import('./pages/Analytics'))
 const Notifications = lazy(() => import('./pages/Notifications'))
@@ -44,13 +43,12 @@ function AppRoutes() {
         <Route path="/users" element={<RequireAuth><Users /></RequireAuth>} />
         <Route path="/contents" element={<RequireAuth><Contents /></RequireAuth>} />
         <Route path="/contents/:id" element={<RequireAuth><ContentDetail /></RequireAuth>} />
-        <Route path="/groups" element={<RequireAuth><Groups /></RequireAuth>} />
+        <Route path="/favorites" element={<RequireAuth><Favorites /></RequireAuth>} />
         <Route path="/export" element={<RequireAuth><Export /></RequireAuth>} />
         <Route path="/analytics" element={<RequireAuth><Analytics /></RequireAuth>} />
         <Route path="/notification-rules" element={<RequireAuth><Notifications /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
         <Route path="/system-settings" element={<RequireAuth><SystemSettings /></RequireAuth>} />
-        <Route path="/tags" element={<RequireAuth><Tags /></RequireAuth>} />
       </Routes>
     </Suspense>
   )

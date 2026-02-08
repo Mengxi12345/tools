@@ -138,33 +138,33 @@ public interface ContentRepository extends JpaRepository<Content, UUID> {
     Page<Content> searchByKeyword(@Param("q") String q, Pageable pageable);
     
     /**
-     * 根据标签查询内容
-     */
-    @Query("SELECT DISTINCT c FROM Content c JOIN c.tags t WHERE t.id = :tagId")
-    Page<Content> findByTagId(@Param("tagId") UUID tagId, Pageable pageable);
-    
-    /**
-     * 根据多个标签查询内容（包含任一标签）
-     */
-    @Query("SELECT DISTINCT c FROM Content c JOIN c.tags t WHERE t.id IN :tagIds")
-    Page<Content> findByTagIds(@Param("tagIds") List<UUID> tagIds, Pageable pageable);
-    
-    /**
-     * 根据标签查询内容（使用子查询避免DISTINCT与ORDER BY冲突）
-     */
-    @Query("SELECT c FROM Content c WHERE c.id IN (SELECT DISTINCT c2.id FROM Content c2 JOIN c2.tags t WHERE t.id = :tagId)")
-    Page<Content> findByTagIdFixed(@Param("tagId") UUID tagId, Pageable pageable);
-    
-    /**
-     * 根据多个标签查询内容（使用子查询避免DISTINCT与ORDER BY冲突）
-     */
-    @Query("SELECT c FROM Content c WHERE c.id IN (SELECT DISTINCT c2.id FROM Content c2 JOIN c2.tags t WHERE t.id IN :tagIds)")
-    Page<Content> findByTagIdsFixed(@Param("tagIds") List<UUID> tagIds, Pageable pageable);
-    
-    /**
      * 根据内容类型查询
      */
     Page<Content> findByContentType(Content.ContentType contentType, Pageable pageable);
+
+    /** 收藏内容分页：isFavorite=true（无额外过滤） */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user WHERE c.isFavorite = true",
+        countQuery = "SELECT COUNT(c) FROM Content c WHERE c.isFavorite = true")
+    Page<Content> findByIsFavoriteTrueWithPlatformAndUser(Pageable pageable);
+
+    /** 收藏内容分页：按 platformId 过滤 */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user WHERE c.isFavorite = true AND c.platform.id = :platformId",
+        countQuery = "SELECT COUNT(c) FROM Content c WHERE c.isFavorite = true AND c.platform.id = :platformId")
+    Page<Content> findByIsFavoriteTrueAndPlatformIdWithPlatformAndUser(@Param("platformId") UUID platformId, Pageable pageable);
+
+    /** 收藏内容分页：按 userId 过滤 */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user WHERE c.isFavorite = true AND c.user.id = :userId",
+        countQuery = "SELECT COUNT(c) FROM Content c WHERE c.isFavorite = true AND c.user.id = :userId")
+    Page<Content> findByIsFavoriteTrueAndUserIdWithPlatformAndUser(@Param("userId") UUID userId, Pageable pageable);
+
+    /** 收藏内容分页：按 platformId 和 userId 过滤 */
+    @Query(value = "SELECT c FROM Content c LEFT JOIN FETCH c.platform LEFT JOIN FETCH c.user WHERE c.isFavorite = true AND c.platform.id = :platformId AND c.user.id = :userId",
+        countQuery = "SELECT COUNT(c) FROM Content c WHERE c.isFavorite = true AND c.platform.id = :platformId AND c.user.id = :userId")
+    Page<Content> findByIsFavoriteTrueAndPlatformIdAndUserIdWithPlatformAndUser(
+        @Param("platformId") UUID platformId,
+        @Param("userId") UUID userId,
+        Pageable pageable
+    );
     
     /**
      * 统计各平台的内容数量
@@ -177,12 +177,6 @@ public interface ContentRepository extends JpaRepository<Content, UUID> {
      */
     @Query("SELECT c.user.id, COUNT(c) FROM Content c GROUP BY c.user.id")
     List<Object[]> countByAuthorGrouped();
-    
-    /**
-     * 统计各标签的内容数量
-     */
-    @Query("SELECT t.id, COUNT(c) FROM Content c JOIN c.tags t GROUP BY t.id")
-    List<Object[]> countByTagGrouped();
     
     /**
      * 内容时间分布统计（按天）

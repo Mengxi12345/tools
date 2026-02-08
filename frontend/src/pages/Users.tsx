@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Switch, Progress, Upload } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, UserOutlined, UserAddOutlined, TeamOutlined, UploadOutlined } from '@ant-design/icons';
 import { Avatar, Typography } from 'antd';
-import { userApi, platformApi, taskApi, groupApi, getApiErrorMessage, getAvatarSrc, getPlatformAvatarSrc } from '../services/api';
+import { userApi, platformApi, taskApi, getApiErrorMessage, getAvatarSrc, getPlatformAvatarSrc } from '../services/api';
 import MainLayout from '../components/Layout/MainLayout';
 
 interface Platform {
@@ -32,7 +32,6 @@ type ContentCountsMap = Record<string, number>;
 function Users() {
   const [users, setUsers] = useState<User[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
-  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   const [modalVisible, setModalVisible] = useState(false);
@@ -49,21 +48,8 @@ function Users() {
 
   useEffect(() => {
     loadPlatforms();
-    loadGroups();
     loadUsers(1, 10);
   }, []);
-
-  const loadGroups = async () => {
-    try {
-      const res: any = await groupApi.getAll();
-      if (res?.code === 200 && res?.data) {
-        const list = Array.isArray(res.data) ? res.data : res.data?.content ?? [];
-        setGroups(list);
-      }
-    } catch {
-      // ignore
-    }
-  };
 
   const loadPlatforms = async () => {
     try {
@@ -125,8 +111,6 @@ function Users() {
       displayName: user.displayName,
       avatarUrl: user.avatarUrl ?? '',
       selfIntroduction: user.selfIntroduction ?? '',
-      groupId: user.groupId ?? undefined,
-      tags: user.tags ?? [],
       isActive: user.isActive,
     });
     setModalVisible(true);
@@ -318,14 +302,6 @@ function Users() {
           {contentCounts[record.id] ?? 0}
         </Typography.Text>
       ),
-    },
-    {
-      title: '标签',
-      dataIndex: 'tags',
-      key: 'tags',
-      width: 140,
-      ellipsis: true,
-      render: (tags: string[]) => (Array.isArray(tags) && tags.length ? <span className="users-table-tags">{tags.join(', ')}</span> : <span className="users-table-empty">-</span>),
     },
     {
       title: '平台',
@@ -552,16 +528,6 @@ function Users() {
             )}
             <Form.Item name="selfIntroduction" label="简介">
               <Input.TextArea rows={3} placeholder="可从平台拉取后在此编辑" />
-            </Form.Item>
-            <Form.Item name="groupId" label="分组">
-              <Select placeholder="选择分组（可选）" allowClear>
-                {groups.map(g => (
-                  <Select.Option key={g.id} value={g.id}>{g.name}</Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-            <Form.Item name="tags" label="标签">
-              <Select mode="tags" placeholder="输入标签后回车添加" tokenSeparators={[',']} />
             </Form.Item>
             <Form.Item
               name="isActive"

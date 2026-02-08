@@ -43,23 +43,16 @@ public class UserController {
         return ApiResponse.success(Map.of("url", url));
     }
 
-    @Operation(summary = "获取用户列表", description = "分页获取所有追踪用户，支持标签过滤")
+    @Operation(summary = "获取用户列表", description = "分页获取所有追踪用户")
     @GetMapping
     public ApiResponse<Page<TrackedUser>> getAllUsers(
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size,
         @RequestParam(defaultValue = "createdAt") String sortBy,
-        @RequestParam(defaultValue = "DESC") String sortDir,
-        @RequestParam(required = false) String tag
+        @RequestParam(defaultValue = "DESC") String sortDir
     ) {
         Sort sort = sortDir.equalsIgnoreCase("ASC") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
-        
-        // 按标签过滤
-        if (tag != null && !tag.isEmpty()) {
-            return ApiResponse.success(trackedUserService.getUsersByTag(tag, pageable));
-        }
-        
         return ApiResponse.success(trackedUserService.getAllUsers(pageable));
     }
     
@@ -86,8 +79,6 @@ public class UserController {
         user.setUserId(request.getUserId());
         user.setDisplayName(request.getDisplayName());
         user.setAvatarUrl(request.getAvatarUrl());
-        user.setGroupId(request.getGroupId());
-        user.setTags(request.getTags());
         user.setIsActive(true);
         
         return ApiResponse.success(trackedUserService.createUser(user));
@@ -103,8 +94,6 @@ public class UserController {
         user.setDisplayName(request.getDisplayName());
         user.setAvatarUrl(request.getAvatarUrl());
         user.setSelfIntroduction(request.getSelfIntroduction());
-        user.setGroupId(request.getGroupId());
-        user.setTags(request.getTags());
         user.setIsActive(request.getIsActive());
         
         return ApiResponse.success(trackedUserService.updateUser(id, user));

@@ -66,26 +66,6 @@ public class StatsService {
     }
     
     /**
-     * 标签统计：统计每个标签被多少用户使用
-     * @return Map<标签名, 用户数>
-     */
-    @Cacheable(value = "stats", key = "'tag-statistics'")
-    public Map<String, Long> getTagUserStatistics() {
-        try {
-            List<Object[]> rows = trackedUserRepository.countUsersByTag();
-            Map<String, Long> map = new HashMap<>();
-            for (Object[] row : rows) {
-                if (row.length >= 2 && row[0] != null && row[1] != null) {
-                    map.put(row[0].toString(), ((Number) row[1]).longValue());
-                }
-            }
-            return map;
-        } catch (Exception e) {
-            return new HashMap<>();
-        }
-    }
-    
-    /**
      * 高级统计：内容发布时间分布（按天）
      */
     public Map<String, Object> getContentTimeDistribution(int days) {

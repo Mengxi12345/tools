@@ -5,7 +5,6 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -79,15 +78,6 @@ public class Content {
 
     @Column(name = "is_favorite", nullable = false)
     private Boolean isFavorite = false;
-
-    @ManyToMany
-    @JoinTable(
-        name = "content_tags",
-        joinColumns = @JoinColumn(name = "content_id"),
-        inverseJoinColumns = @JoinColumn(name = "tag_id")
-    )
-    @BatchSize(size = 20)
-    private List<Tag> tags = new ArrayList<>();
 
     @Column(columnDefinition = "text")
     private String notes; // 个人备注

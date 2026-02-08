@@ -7,7 +7,6 @@ import com.caat.entity.Content;
 import com.caat.entity.ContentDocument;
 import com.caat.entity.Platform;
 import com.caat.entity.SearchHistory;
-import com.caat.entity.Tag;
 import com.caat.repository.ContentRepository;
 import com.caat.repository.SearchHistoryRepository;
 import com.caat.exception.BusinessException;
@@ -50,8 +49,6 @@ import java.util.regex.Pattern;
 public class ContentService {
     
     private final ContentRepository contentRepository;
-    private final KeywordExtractionService keywordExtractionService;
-    private final TagService tagService;
     private final ElasticsearchService elasticsearchService;
     private final SearchHistoryRepository searchHistoryRepository;
     private final ContentAssetService contentAssetService;
@@ -88,34 +85,27 @@ public class ContentService {
     }
     
     /**
-     * 根据标签 ID 获取内容列表
-     */
-    public Page<Content> getContentsByTagId(UUID tagId, Pageable pageable) {
-        try {
-            return contentRepository.findByTagIdFixed(tagId, pageable);
-        } catch (Exception e) {
-            log.warn("使用固定查询方法失败，回退到原方法", e);
-            return contentRepository.findByTagId(tagId, pageable);
-        }
-    }
-    
-    /**
-     * 根据多个标签 ID 获取内容列表（包含任一标签）
-     */
-    public Page<Content> getContentsByTagIds(List<UUID> tagIds, Pageable pageable) {
-        try {
-            return contentRepository.findByTagIdsFixed(tagIds, pageable);
-        } catch (Exception e) {
-            log.warn("使用固定查询方法失败，回退到原方法", e);
-            return contentRepository.findByTagIds(tagIds, pageable);
-        }
-    }
-    
-    /**
      * 根据内容类型获取内容列表，一次性加载 platform、user
      */
     public Page<Content> getContentsByContentType(Content.ContentType contentType, Pageable pageable) {
         return contentRepository.findByContentTypeWithPlatformAndUser(contentType, pageable);
+    }
+
+    /**
+     * 获取收藏内容列表（分页），支持按平台、用户过滤
+     * 分派到不同查询方法，避免 PostgreSQL 对 (:param IS NULL) 参数类型推断失败
+     */
+    public Page<Content> getFavoriteContents(UUID platformId, UUID userId, Pageable pageable) {
+        if (platformId == null && userId == null) {
+            return contentRepository.findByIsFavoriteTrueWithPlatformAndUser(pageable);
+        }
+        if (platformId == null) {
+            return contentRepository.findByIsFavoriteTrueAndUserIdWithPlatformAndUser(userId, pageable);
+        }
+        if (userId == null) {
+            return contentRepository.findByIsFavoriteTrueAndPlatformIdWithPlatformAndUser(platformId, pageable);
+        }
+        return contentRepository.findByIsFavoriteTrueAndPlatformIdAndUserIdWithPlatformAndUser(platformId, userId, pageable);
     }
 
     /**
@@ -214,16 +204,6 @@ public class ContentService {
             }
         }
         stats.put("byAuthor", authorMap);
-        
-        // 标签分类统计
-        List<Object[]> tagStats = contentRepository.countByTagGrouped();
-        Map<String, Long> tagMap = new java.util.HashMap<>();
-        for (Object[] row : tagStats) {
-            if (row.length >= 2 && row[0] != null && row[1] != null) {
-                tagMap.put(row[0].toString(), ((Number) row[1]).longValue());
-            }
-        }
-        stats.put("byTag", tagMap);
         
         return stats;
     }
@@ -641,9 +621,6 @@ public class ContentService {
         if (content.getNotes() != null) {
             existing.setNotes(content.getNotes());
         }
-        if (content.getTags() != null) {
-            existing.setTags(content.getTags());
-        }
         Content saved = contentRepository.save(existing);
         if (log.isDebugEnabled()) {
             String title = saved.getTitle();
@@ -658,76 +635,6 @@ public class ContentService {
             log.warn("更新 Elasticsearch 索引失败: {}", e.getMessage());
         }
         return saved;
-    }
-    
-    /**
-     * 为内容自动生成标签（基于关键词提取）
-     */
-    @Transactional
-    public Content generateTagsForContent(UUID contentId, int maxTags) {
-        Content content = getContentById(contentId);
-        
-        // 提取关键词
-        List<String> keywords = keywordExtractionService.extractKeywordsFromContent(
-                content.getTitle(), content.getBody(), maxTags);
-        
-        // 为每个关键词创建或获取标签
-        List<Tag> tags = new ArrayList<>();
-        for (String keyword : keywords) {
-            try {
-                Tag tag = tagService.getTagByName(keyword);
-                tags.add(tag);
-            } catch (BusinessException e) {
-                // 标签不存在，创建新标签
-                try {
-                    Tag newTag = tagService.createTag(keyword, "#1890ff", "auto");
-                    tags.add(newTag);
-                    log.info("自动创建标签: {}", keyword);
-                } catch (Exception ex) {
-                    log.warn("创建标签失败: {}", keyword, ex);
-                }
-            }
-        }
-        
-        // 合并现有标签和新标签
-        if (content.getTags() == null) {
-            content.setTags(new ArrayList<>());
-        }
-        for (Tag tag : tags) {
-            if (!content.getTags().contains(tag)) {
-                content.getTags().add(tag);
-            }
-        }
-        
-        return contentRepository.save(content);
-    }
-    
-    /**
-     * 为内容添加标签
-     */
-    @Transactional
-    public Content addTagToContent(UUID contentId, UUID tagId) {
-        Content content = getContentById(contentId);
-        Tag tag = tagService.getTagById(tagId);
-        if (content.getTags() == null) {
-            content.setTags(new ArrayList<>());
-        }
-        if (!content.getTags().contains(tag)) {
-            content.getTags().add(tag);
-        }
-        return contentRepository.save(content);
-    }
-    
-    /**
-     * 从内容移除标签
-     */
-    @Transactional
-    public Content removeTagFromContent(UUID contentId, UUID tagId) {
-        Content content = getContentById(contentId);
-        if (content.getTags() != null) {
-            content.getTags().removeIf(tag -> tag.getId().equals(tagId));
-        }
-        return contentRepository.save(content);
     }
     
     /**

@@ -48,9 +48,6 @@ public class TrackedUser {
     @Column(name = "self_introduction", length = 2000)
     private String selfIntroduction;
 
-    @Column(name = "group_id")
-    private UUID groupId; // 用户分组 ID（可选）
-
     @ElementCollection
     @CollectionTable(name = "tracked_user_tags", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "tag")

@@ -193,6 +193,7 @@ export const contentApi = {
     keyword?: string;
     startTime?: string;
     endTime?: string;
+    isFavorite?: boolean;
   }) => apiClient.get<ApiResponse<any>>('/contents', { params }),
   /** 按平台→用户→月聚合数量，用于内容管理树形展示（仅数量） */
   getGroupedCounts: () => apiClient.get<ApiResponse<{ total: number; platforms: any[] }>>('/contents/grouped-counts'),
@@ -273,19 +274,6 @@ export const taskApi = {
     apiClient.post<ApiResponse<number>>('/tasks/fetch/delete-all-by-type', { taskType }),
 };
 
-// 标签相关API
-export const tagApi = {
-  getAll: () => apiClient.get<ApiResponse<any>>('/tags'),
-  getPage: (params?: { page?: number; size?: number }) =>
-    apiClient.get<ApiResponse<any>>('/tags/page', { params }),
-  getById: (id: string) => apiClient.get<ApiResponse<any>>(`/tags/${id}`),
-  create: (data: any) => apiClient.post<ApiResponse<any>>('/tags', data),
-  update: (id: string, data: any) => apiClient.put<ApiResponse<any>>(`/tags/${id}`, data),
-  delete: (id: string) => apiClient.delete<ApiResponse<void>>(`/tags/${id}`),
-  getPopular: (limit?: number) =>
-    apiClient.get<ApiResponse<any>>('/tags/popular', { params: { limit } }),
-};
-
 // 认证相关API
 export const authApi = {
   login: (data: { username: string; password: string }) =>
@@ -293,17 +281,6 @@ export const authApi = {
   // register 已下线
   // register: (data: { username: string; password: string; email?: string }) =>
   //   apiClient.post<ApiResponse<any>>('/auth/register', data),
-};
-
-// 用户分组API
-export const groupApi = {
-  getAll: () => apiClient.get<ApiResponse<any>>('/groups'),
-  getById: (id: string) => apiClient.get<ApiResponse<any>>(`/groups/${id}`),
-  create: (data: { name: string; description?: string; sortOrder?: number }) =>
-    apiClient.post<ApiResponse<any>>('/groups', data),
-  update: (id: string, data: { name?: string; description?: string; sortOrder?: number }) =>
-    apiClient.put<ApiResponse<any>>(`/groups/${id}`, data),
-  delete: (id: string) => apiClient.delete<ApiResponse<void>>(`/groups/${id}`),
 };
 
 // 通知规则API
@@ -393,8 +370,6 @@ export const statsApi = {
     apiClient.get<ApiResponse<any>>('/stats/platform-distribution'),
   getUserStats: () =>
     apiClient.get<ApiResponse<any>>('/stats/users'),
-  getTagStatistics: () =>
-    apiClient.get<ApiResponse<any>>('/stats/tags'),
   getContentTimeDistribution: (days?: number) =>
     apiClient.get<ApiResponse<any>>('/stats/content-time-distribution', { params: { days } }),
   getContentTypeDistribution: () =>

@@ -7,8 +7,7 @@ import {
   UserOutlined,
   FileTextOutlined,
   SettingOutlined,
-  TagsOutlined,
-  TeamOutlined,
+  StarOutlined,
   DownloadOutlined,
   BarChartOutlined,
   BellOutlined,
@@ -85,14 +84,9 @@ function MainLayout({ children }: MainLayoutProps) {
       label: '内容管理',
     },
     {
-      key: '/tags',
-      icon: <TagsOutlined />,
-      label: '标签管理',
-    },
-    {
-      key: '/groups',
-      icon: <TeamOutlined />,
-      label: '用户分组',
+      key: '/favorites',
+      icon: <StarOutlined />,
+      label: '收藏管理',
     },
     {
       key: '/export',

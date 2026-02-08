@@ -40,12 +40,6 @@ public class StatsController {
         return ApiResponse.success(statsService.getUserStats());
     }
 
-    @Operation(summary = "标签统计", description = "统计每个标签被多少用户使用")
-    @GetMapping("/tags")
-    public ApiResponse<Map<String, Long>> tagStatistics() {
-        return ApiResponse.success(statsService.getTagUserStatistics());
-    }
-    
     @Operation(summary = "内容时间分布", description = "统计内容发布时间分布")
     @GetMapping("/content-time-distribution")
     public ApiResponse<Map<String, Object>> getContentTimeDistribution(
@@ -84,7 +78,6 @@ public class StatsController {
             overview.put("platformDistribution", statsService.getPlatformDistribution());
             overview.put("userStats", statsService.getUserStats());
             overview.put("contentTypeDistribution", statsService.getContentTypeDistribution());
-            overview.put("tagStatistics", statsService.getTagUserStatistics());
             overview.put("contentStats", contentService.getContentStats(null));
             return ApiResponse.success(overview);
         } catch (Exception e) {

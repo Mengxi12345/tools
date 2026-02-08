@@ -42,10 +42,9 @@ public class ContentController {
         @RequestParam(required = false) UUID platformId,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
-        @RequestParam(required = false) UUID tagId,
-        @RequestParam(required = false) List<UUID> tagIds,
         @RequestParam(required = false) Content.ContentType contentType,
-        @RequestParam(required = false) String keyword
+        @RequestParam(required = false) String keyword,
+        @RequestParam(required = false) Boolean isFavorite
     ) {
         // 搜索时强制按发布时间倒序排列
         Sort sort;
@@ -57,19 +56,17 @@ public class ContentController {
         }
         
         Page<Content> contents;
-        // 优先处理关键字搜索（可以与其他过滤条件组合）
-        if (keyword != null && !keyword.trim().isEmpty()) {
+        // 收藏过滤：仅返回 isFavorite=true 的内容
+        if (Boolean.TRUE.equals(isFavorite)) {
+            contents = contentService.getFavoriteContents(platformId, userId, PageRequest.of(page, size, sort));
+        } else if (keyword != null && !keyword.trim().isEmpty()) {
             // 搜索时使用正常分页，按时间倒序
             Pageable searchPageable = PageRequest.of(page, size, sort);
             contents = contentService.searchByKeywordWithFilters(keyword, platformId, userId, searchPageable);
         } else {
             // 非搜索场景使用正常分页
             Pageable pageable = PageRequest.of(page, size, sort);
-            if (tagIds != null && !tagIds.isEmpty()) {
-                contents = contentService.getContentsByTagIds(tagIds, pageable);
-            } else if (tagId != null) {
-                contents = contentService.getContentsByTagId(tagId, pageable);
-            } else if (contentType != null) {
+            if (contentType != null) {
                 contents = contentService.getContentsByContentType(contentType, pageable);
             } else if (userId != null && startTime != null && endTime != null) {
                 contents = contentService.getContentsByUserAndPublishedAtBetween(userId, platformId, startTime, endTime, pageable);
@@ -141,15 +138,6 @@ public class ContentController {
         @RequestParam(required = false) UUID userId
     ) {
         return ApiResponse.success(contentService.getContentStats(userId));
-    }
-    
-    @Operation(summary = "为内容自动生成标签", description = "基于关键词提取为内容自动生成标签")
-    @PostMapping("/{id}/generate-tags")
-    public ApiResponse<Content> generateTags(
-        @PathVariable UUID id,
-        @RequestParam(defaultValue = "5") int maxTags
-    ) {
-        return ApiResponse.success(contentService.generateTagsForContent(id, maxTags));
     }
     
     @Operation(summary = "Elasticsearch 全文搜索", description = "使用 Elasticsearch 进行全文搜索")
