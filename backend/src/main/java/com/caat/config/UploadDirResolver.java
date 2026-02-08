@@ -29,6 +29,7 @@ public class UploadDirResolver {
             }
         }
         this.resolvedPath = base;
+        log.info("上传目录已解析: {}", base);
     }
 
     public Path getResolvedPath() {

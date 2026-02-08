@@ -370,9 +370,11 @@ public class ContentFetchService {
         // 3. 平台特定资产处理（图片下载、附件下载等）
         applyPlatformAssetProcessor(platformContent, platform, user, content, metadataMap);
 
-        // 如果策略未设置 mediaUrls，则回退到原始平台数据
-        if (content.getMediaUrls() == null) {
-            content.setMediaUrls(mediaUrls != null ? mediaUrls : platformContent.getMediaUrls());
+        // 如果策略未设置 mediaUrls（null 或空且平台有数据），则回退到原始平台数据
+        List<String> current = content.getMediaUrls();
+        if (current == null || (current.isEmpty() && mediaUrls != null && !mediaUrls.isEmpty())) {
+            List<String> urlsToSet = mediaUrls != null ? mediaUrls : platformContent.getMediaUrls();
+            content.setMediaUrls(urlsToSet != null ? urlsToSet : new ArrayList<>());
         }
 
         // 4. 发布时间与 DB 约束兜底
@@ -425,6 +427,8 @@ public class ContentFetchService {
                                              Map<String, Object> metadataMap) {
         // 关闭附件下载时，直接保留平台原始 URL，不做任何本地下载与替换
         if (!scheduleService.isContentAssetDownloadEnabled()) {
+            List<String> urls = platformContent.getMediaUrls();
+            content.setMediaUrls(urls != null ? new ArrayList<>(urls) : new ArrayList<>());
             return;
         }
         if (platform == null || platform.getType() == null) return;
