@@ -160,6 +160,26 @@ docker pull crpi-anqb8q8dr9wohaz8.cn-beijing.personal.cr.aliyuncs.com/mengxi666/
 docker pull crpi-anqb8q8dr9wohaz8.cn-beijing.personal.cr.aliyuncs.com/mengxi666/mengxi666-frontend:1.0.0
 ```
 
+## 常见问题
+
+### 平台头像 / 内容图片不显示
+
+1. **确认已重新构建并部署前端**：nginx 配置修改后必须重新构建前端镜像并重新部署，仅重启容器不会生效。
+   ```bash
+   # 本地构建并推送
+   ./scripts/build-images-aliyun.sh 1.0.1 梦溪mengxi
+   
+   # ECS 上拉取并重启前端
+   docker compose -f docker-compose.prod.yml pull frontend
+   docker compose -f docker-compose.prod.yml up -d frontend
+   ```
+
+2. **浏览器中验证**：打开开发者工具 Network，刷新页面，检查 `/api/v1/uploads/platforms/xxx.jpg` 请求：
+   - 若返回 404：可能是 nginx 把请求当作静态资源处理，确认 frontend 镜像已更新
+   - 若返回 200：说明后端正常，若仍不显示，检查是否有混合内容（https 页面请求 http 图片）
+
+3. **直接访问测试**：在浏览器地址栏访问 `https://你的域名/api/v1/uploads/platforms/平台头像文件名.jpg`，应能直接看到图片。
+
 ## 更新镜像
 
 ### 1. 构建新版本
