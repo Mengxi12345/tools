@@ -10,6 +10,11 @@ RUN npm ci --only=production=false
 
 # 复制源代码并构建
 COPY . .
+# 可选：当前端与后端不同域名时，传入后端地址（构建时注入）
+ARG VITE_API_BASE_URL=
+ARG VITE_UPLOADS_BASE_URL=
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_UPLOADS_BASE_URL=$VITE_UPLOADS_BASE_URL
 RUN npm run build
 
 # 阶段2: 运行阶段

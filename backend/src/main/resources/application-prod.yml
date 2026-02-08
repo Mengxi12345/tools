@@ -27,6 +27,10 @@ spring:
     username: ${RABBITMQ_USERNAME:admin}
     password: ${RABBITMQ_PASSWORD:admin}
 
+# 上传目录：Docker 下卷挂载到 /app/uploads
+app:
+  upload-dir: ${APP_UPLOAD_DIR:/app/uploads}
+
 logging:
   level:
     root: WARN

@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -730,14 +731,14 @@ public class ContentService {
     }
     
     /**
-     * 删除内容
+     * 删除内容，包括文字、图片、附件等该文章下的所有关联资源。
+     * 会删除 mediaUrls、metadata.downloaded_file_urls、body 中 img 标签引用的本地文件。
      */
     @Transactional
     public void deleteContent(UUID id) {
         Content content = getContentById(id);
+        deleteLocalFilesForContent(content);
         contentRepository.delete(content);
-        
-        // 同步删除 Elasticsearch 索引
         try {
             elasticsearchService.deleteContent(id);
         } catch (Exception e) {
@@ -746,15 +747,76 @@ public class ContentService {
     }
 
     /**
-     * 按作者（追踪用户）删除该用户下的全部内容
+     * 删除内容关联的本地文件（图片、附件）。
+     * 从 mediaUrls、metadata.downloaded_file_urls、body 中 img 标签提取本地路径并删除。
+     */
+    private void deleteLocalFilesForContent(Content content) {
+        Set<String> localUrlsToDelete = new HashSet<>();
+
+        if (content.getMediaUrls() != null) {
+            for (String url : content.getMediaUrls()) {
+                if (url != null && url.contains("/api/v1/uploads/")) {
+                    localUrlsToDelete.add(url.trim());
+                }
+            }
+        }
+
+        if (content.getMetadata() != null && !content.getMetadata().isBlank()) {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> meta = objectMapper.readValue(content.getMetadata(), Map.class);
+                Object list = meta.get("downloaded_file_urls");
+                if (list instanceof List<?> urls) {
+                    for (Object item : urls) {
+                        if (item instanceof Map<?, ?> m) {
+                            Object localUrl = m.get("local_url");
+                            if (localUrl instanceof String s && s.contains("/api/v1/uploads/")) {
+                                localUrlsToDelete.add(s.trim());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("解析 metadata 获取 downloaded_file_urls 失败: id={}", content.getId(), e);
+            }
+        }
+
+        if (content.getBody() != null && content.getBody().contains("/api/v1/uploads/")) {
+            Matcher m = Pattern.compile("src\\s*=\\s*[\"']([^\"']*?/api/v1/uploads/[^\"']+)[\"']")
+                .matcher(content.getBody());
+            while (m.find()) {
+                localUrlsToDelete.add(m.group(1).trim());
+            }
+        }
+
+        for (String url : localUrlsToDelete) {
+            try {
+                contentAssetService.deleteLocalFileByUrl(url);
+            } catch (Exception e) {
+                log.warn("删除内容关联文件失败（继续）: url={}, error={}", url, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 按作者（追踪用户）删除该用户下的全部内容，包括文字、图片、附件等。
      * @param userId 追踪用户 ID（content.user.id）
      * @return 删除条数
      */
     @Transactional
     public int deleteContentsByUserId(UUID userId) {
+        List<Content> contents = contentRepository.findAllByUserId(userId);
+        for (Content c : contents) {
+            deleteLocalFilesForContent(c);
+            try {
+                elasticsearchService.deleteContent(c.getId());
+            } catch (Exception e) {
+                log.warn("删除 Elasticsearch 索引失败: id={}", c.getId(), e);
+            }
+        }
         int deleted = contentRepository.deleteByUserId(userId);
         if (deleted > 0) {
-            log.info("已按作者删除 {} 条内容: userId={}", deleted, userId);
+            log.info("已按作者删除 {} 条内容（含图片、附件）: userId={}", deleted, userId);
         }
         return deleted;
     }

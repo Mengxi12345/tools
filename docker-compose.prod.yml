@@ -88,6 +88,8 @@ services:
     container_name: caat-backend
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - backend_uploads:/app/uploads
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -107,6 +109,7 @@ services:
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-admin}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-admin}
       JWT_SECRET: ${JWT_SECRET}
+      APP_UPLOAD_DIR: /app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -137,6 +140,7 @@ volumes:
   redis_data:
   elasticsearch_data:
   rabbitmq_data:
+  backend_uploads:
 
 networks:
   caat-network:

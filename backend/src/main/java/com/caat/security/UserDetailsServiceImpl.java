@@ -6,15 +6,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 用户详情服务实现
+ * 用户详情服务实现（由 SecurityConfig 注册为 UserDetailsService bean）
  */
-@Service
 @RequiredArgsConstructor
 public class UserDetailsServiceImpl implements UserDetailsService {
     

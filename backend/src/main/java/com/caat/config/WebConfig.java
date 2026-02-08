@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
@@ -26,16 +25,18 @@ import java.time.format.DateTimeFormatter;
 @RequiredArgsConstructor
 public class WebConfig implements WebMvcConfigurer {
 
-    @Value("${app.upload-dir:uploads}")
-    private String uploadDir;
-
+    private final UploadDirResolver uploadDirResolver;
     private final RateLimitInterceptor rateLimitInterceptor;
     
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        Path base = Paths.get(uploadDir).toAbsolutePath().normalize();
+        Path base = uploadDirResolver.getResolvedPath();
+        String location = base.toUri().toString();
+        if (!location.endsWith("/")) {
+            location += "/";
+        }
         registry.addResourceHandler("/api/v1/uploads/**")
-                .addResourceLocations(base.toUri().toString() + "/");
+                .addResourceLocations(location);
     }
     
     @Override

@@ -23,6 +23,12 @@ public interface TrackedUserRepository extends JpaRepository<TrackedUser, UUID> 
 
     List<TrackedUser> findByPlatformId(UUID platformId);
 
+    /**
+     * 按平台类型查询用户（含 platform 预加载），用于 TimeStore 补漏等
+     */
+    @Query("SELECT u FROM TrackedUser u JOIN FETCH u.platform WHERE u.platform.type = :platformType")
+    List<TrackedUser> findByPlatformTypeWithPlatform(@Param("platformType") String platformType);
+
     List<TrackedUser> findByIsActiveTrue();
 
     Page<TrackedUser> findByGroupId(UUID groupId, Pageable pageable);

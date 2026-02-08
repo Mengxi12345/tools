@@ -45,6 +45,9 @@ import java.util.regex.Pattern;
 @Service
 @RequiredArgsConstructor
 public class ContentFetchService {
+
+    /** 保存结果：content 为落库实体，wasNew 表示是否新写入（false 表示已存在跳过） */
+    public record SaveContentResult(Content content, boolean wasNew) {}
     
     private final TrackedUserRepository trackedUserRepository;
     private final ContentRepository contentRepository;
@@ -330,14 +333,26 @@ public class ContentFetchService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Content saveContent(PlatformContent platformContent, Platform platform, TrackedUser user) {
-        // 1. 生成内容哈希并做幂等校验
+        SaveContentResult result = saveContentWithResult(platformContent, platform, user);
+        return result != null ? result.content() : null;
+    }
+
+    /**
+     * 保存内容并返回是否新写入，用于补漏等场景的统计
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SaveContentResult saveContentWithResult(PlatformContent platformContent, Platform platform, TrackedUser user) {
         String hash = generateContentHash(platformContent);
         if (contentRepository.existsByHash(hash)) {
             log.info("[保存排查] 内容已存在，跳过: contentId={}, hash={}", platformContent.getContentId(), hash);
-            return contentRepository.findByHash(hash).orElse(null);
+            return new SaveContentResult(contentRepository.findByHash(hash).orElse(null), false);
         }
+        Content saved = buildAndSaveContent(platformContent, platform, user, hash);
+        return new SaveContentResult(saved, true);
+    }
 
-        // 2. 构建基础 Content 实体（不含平台特定资产与元数据）
+    private Content buildAndSaveContent(PlatformContent platformContent, Platform platform, TrackedUser user, String hash) {
+        // 构建基础 Content 实体（不含平台特定资产与元数据）
         Content content = new Content();
         content.setPlatform(platform);
         content.setUser(user);

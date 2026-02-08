@@ -73,6 +73,21 @@ export interface ApiResponse<T> {
 const API_BASE_ORIGIN =
   API_BASE_URL.startsWith('http') ? new URL(API_BASE_URL).origin : (typeof window !== 'undefined' ? window.location.origin : '');
 
+/**
+ * 图片/附件的 base URL。所有本地上传的图片和附件统一使用后端 uploads 目录（backend/uploads）。
+ * 当前端与后端不同域名时，设置 VITE_UPLOADS_BASE_URL 指向后端地址。
+ */
+const UPLOADS_BASE_URL = (import.meta as any).env?.VITE_UPLOADS_BASE_URL as string | undefined;
+const UPLOADS_ORIGIN = UPLOADS_BASE_URL ? new URL(UPLOADS_BASE_URL).origin : API_BASE_ORIGIN;
+
+/** 后端 uploads 目录的 API 路径（/api/v1/uploads/ 映射到 uploads，即 app.upload-dir） */
+export const UPLOADS_BASE_PATH = '/api/v1/uploads';
+
+/** 获取后端 uploads 的完整 base URL（例如 https://example.com/api/v1/uploads） */
+export function getUploadsBaseUrl(): string {
+  return `${UPLOADS_ORIGIN}${UPLOADS_BASE_PATH}`;
+}
+
 export const platformApi = {
   getAll: () => apiClient.get<ApiResponse<any>>('/platforms'),
   getById: (id: string) => apiClient.get<ApiResponse<any>>(`/platforms/${id}`),
@@ -90,30 +105,46 @@ export const platformApi = {
   },
 };
 
-/** 平台头像完整 URL：相对路径则拼上后端 origin */
+/**
+ * 将图片/附件路径转为完整 URL，统一使用后端 uploads 目录（/api/v1/uploads/ 对应 uploads）。
+ * 本地上传的图片和附件均从后端 uploads 加载。
+ * - 同源部署（未设置 VITE_UPLOADS_BASE_URL）：直接使用相对路径，浏览器会向当前 origin 请求。
+ * - 跨域部署：需设置 VITE_UPLOADS_BASE_URL，否则图片会请求到错误地址。
+ */
 export function getPlatformAvatarSrc(avatarUrl: string | undefined): string | undefined {
   if (!avatarUrl) return undefined;
   const url = avatarUrl.trim();
   if (!url) return undefined;
-  // 已经是完整的 HTTP/HTTPS URL，直接返回
+  // 完整 HTTP URL：外部平台（如 CDN）直接返回
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  // 本地上传的相对路径：/api/v1/uploads/... 或 api/v1/uploads/... 或 /uploads/... 等
-  if (url.startsWith('/api/')) return `${API_BASE_ORIGIN}${url}`;
-  if (url.startsWith('api/')) return `${API_BASE_ORIGIN}/${url}`;
-  if (url.startsWith('/uploads/')) return `${API_BASE_ORIGIN}${url}`;
-  if (url.startsWith('uploads/')) return `${API_BASE_ORIGIN}/${url}`;
-  // 如果是以 / 开头的相对路径，可能是本地上传文件，添加 API_BASE_ORIGIN
-  if (url.startsWith('/')) return `${API_BASE_ORIGIN}${url}`;
-  // 兜底：保持原样
+  // 本地上传路径：同源时用相对路径，跨域时拼完整 URL
+  const base = UPLOADS_BASE_URL ? `${UPLOADS_ORIGIN}` : '';
+  if (url.startsWith('/api/v1/uploads/')) return base ? `${base}${url}` : url;
+  if (url.startsWith('api/v1/uploads/')) return base ? `${base}/${url}` : `/${url}`;
+  if (url.startsWith('/api/')) return base ? `${base}${url}` : url;
+  if (url.startsWith('api/')) return base ? `${base}/${url}` : `/${url}`;
+  const rel = (p: string) => (base ? `${base}${p}` : p);
+  if (url.startsWith('backend/uploads/')) return rel(`${UPLOADS_BASE_PATH}/${url.slice('backend/uploads/'.length)}`);
+  if (url.startsWith('/uploads/')) return rel(`${UPLOADS_BASE_PATH}/${url.slice('/uploads/'.length)}`);
+  if (url.startsWith('uploads/')) return rel(`${UPLOADS_BASE_PATH}/${url.slice('uploads/'.length)}`);
+  if (url.startsWith('contents/') || url.startsWith('platforms/') || url.startsWith('users/')) {
+    return rel(`${UPLOADS_BASE_PATH}/${url}`);
+  }
+  if (url.startsWith('/')) return rel(url);
   return url;
 }
 
-/** 内容图片完整 URL（用于 mediaUrls 和 body 中的图片） */
+/** 内容图片完整 URL（用于 mediaUrls 和 body 中的图片），统一使用 backend/uploads */
 export function getContentImageSrc(imageUrl: string | undefined): string | undefined {
   return getPlatformAvatarSrc(imageUrl);
 }
 
-/** 用户头像完整 URL（追踪用户头像，同平台头像逻辑） */
+/** 内容附件完整 URL（用于 metadata.downloaded_file_urls 等），统一使用 backend/uploads */
+export function getContentAttachmentUrl(localUrl: string | undefined): string | undefined {
+  return getPlatformAvatarSrc(localUrl);
+}
+
+/** 用户头像完整 URL（追踪用户头像，同平台头像逻辑），统一使用 backend/uploads */
 export function getAvatarSrc(avatarUrl: string | undefined): string | undefined {
   return getPlatformAvatarSrc(avatarUrl);
 }
@@ -259,8 +290,9 @@ export const tagApi = {
 export const authApi = {
   login: (data: { username: string; password: string }) =>
     apiClient.post<ApiResponse<any>>('/auth/login', data),
-  register: (data: { username: string; password: string; email?: string }) =>
-    apiClient.post<ApiResponse<any>>('/auth/register', data),
+  // register 已下线
+  // register: (data: { username: string; password: string; email?: string }) =>
+  //   apiClient.post<ApiResponse<any>>('/auth/register', data),
 };
 
 // 用户分组API

@@ -97,6 +97,10 @@ cp .env.example .env
 vim .env  # 或使用其他编辑器
 ```
 
+**可选（前端构建时传入）：**
+- `VITE_API_BASE_URL`：后端 API 地址，当前端与后端不同域名时设置为完整 URL（如 `https://api.example.com/api/v1`）
+- `VITE_UPLOADS_BASE_URL`：图片/附件 base URL，当前端与后端不同域名时设置（如 `https://api.example.com`），图片会从该地址加载
+
 **必填项：**
 - `BACKEND_IMAGE`、`FRONTEND_IMAGE`：阿里云镜像地址（推送后从 `.docker-images-aliyun.txt` 获取）
 - `DB_PASSWORD`：数据库密码（生产环境务必使用强密码）

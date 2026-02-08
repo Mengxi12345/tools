@@ -37,6 +37,11 @@ import java.util.concurrent.ThreadLocalRandom;
 public class TimeStoreAdapter implements PlatformAdapter {
 
     private static final String PLATFORM_TYPE = "TIMESTORE";
+    /** 文章请求失败时最大重试次数 */
+    private static final int MAX_RETRIES = 10;
+    /** 重试间隔随机范围：最小 2 秒，最大 8 秒 */
+    private static final int RETRY_DELAY_MIN_MS = 2000;
+    private static final int RETRY_DELAY_MAX_MS = 8000;
     /** 真实 API：我的博客列表（api.timestore.vip） */
     private static final String DEFAULT_MYBLOG_PATH = "/timeline/mymblog";
     /** 单篇文章详情（api.timestore.vip，根据 postId 直接拉取） */
@@ -140,6 +145,40 @@ public class TimeStoreAdapter implements PlatformAdapter {
     }
 
     /**
+     * 执行 GET 请求，失败时重试最多 MAX_RETRIES 次，每次间隔随机时间。
+     * 用于文章列表等请求，统一在底层处理网络抖动、限流等情况。
+     */
+    private ResponseEntity<Map> executeGetWithRetry(String url, HttpEntity<String> entity, String caller) throws BusinessException {
+        Exception lastEx = null;
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+                if (attempt > 1) {
+                    log.info("TimeStore {} 第 {} 次重试成功: url={}", caller, attempt, url);
+                }
+                return response;
+            } catch (Exception e) {
+                lastEx = e;
+                if (attempt < MAX_RETRIES) {
+                    int delayMs = RETRY_DELAY_MIN_MS + ThreadLocalRandom.current().nextInt(RETRY_DELAY_MAX_MS - RETRY_DELAY_MIN_MS + 1);
+                    log.warn("TimeStore {} 请求失败，第 {}/{} 次，{}ms 后重试: url={}, error={}",
+                        caller, attempt, MAX_RETRIES, delayMs, url, e.getMessage());
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new BusinessException(ErrorCode.PLATFORM_CONNECTION_FAILED, "请求被中断: " + e.getMessage());
+                    }
+                } else {
+                    log.error("TimeStore {} 请求失败，已重试 {} 次: url={}", caller, MAX_RETRIES, url, e);
+                }
+            }
+        }
+        throw new BusinessException(ErrorCode.PLATFORM_CONNECTION_FAILED,
+            "获取内容失败（已重试 " + MAX_RETRIES + " 次）: " + (lastEx != null ? lastEx.getMessage() : "未知错误"));
+    }
+
+    /**
      * 单页拉取：每次调用只请求一页，返回 nextCursor/hasMore 供调用方循环。
      * 每页条数随机 100~150，降低固定请求特征、便于防限流。
      */
@@ -186,7 +225,7 @@ public class TimeStoreAdapter implements PlatformAdapter {
             String dateParam = startTime != null ? startTime.format(DateTimeFormatter.ISO_LOCAL_DATE) : null;
             log.info("TimeStore 刷新内容 请求 地址: {}", url);
             log.info("TimeStore 刷新内容 入参: uid={}, current={}, size={}, date={}, mateAuth=Bearer ***", uid, currentPage, pageSize, dateParam);
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            ResponseEntity<Map> response = executeGetWithRetry(url, entity, "getUserContents");
             logResponse(url, response);
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                 return FetchResult.builder().contents(new ArrayList<>()).nextCursor(null).hasMore(false).fetchedCount(0).build();

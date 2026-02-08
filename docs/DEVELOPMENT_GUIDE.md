@@ -68,6 +68,8 @@ mvn spring-boot:run
 
 后端将在 `http://localhost:8080` 启动。
 
+**上传目录**：从 `backend` 目录启动时，`uploads` 解析为 `backend/uploads`。若从项目根目录启动（如 IDE），会自动回退到 `backend/uploads`，确保图片正确加载。
+
 ### 5. 启动前端
 
 ```bash
@@ -83,6 +85,17 @@ npm run dev
 ```bash
 ./scripts/start-all.sh
 ```
+
+### 6. 本地开发：内容图片不显示（404）
+
+前端（localhost:3000）与后端（localhost:8080）不同端口时，若内容详情中的图片返回 404，可创建 `frontend/.env.local`：
+
+```bash
+# 强制图片/附件直接请求后端
+VITE_UPLOADS_BASE_URL=http://localhost:8080
+```
+
+然后重启前端 `npm run dev`。
 
 ## 代码规范
 

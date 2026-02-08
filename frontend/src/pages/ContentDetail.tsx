@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Space, Button, Tag, message, Spin, Form, Input, Image } from 'antd';
-import { ArrowLeftOutlined, LinkOutlined, StarOutlined, StarFilled, EyeOutlined, ReloadOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
-import { contentApi, getApiErrorMessage, getPlatformAvatarSrc, getContentImageSrc } from '../services/api';
+import { Card, Descriptions, Space, Button, Tag, message, Spin, Form, Input, Image, Modal } from 'antd';
+import { ArrowLeftOutlined, LinkOutlined, StarOutlined, StarFilled, EyeOutlined, ReloadOutlined, LeftOutlined, RightOutlined, DeleteOutlined } from '@ant-design/icons';
+import { contentApi, getApiErrorMessage, getPlatformAvatarSrc, getContentImageSrc, getContentAttachmentUrl } from '../services/api';
 import MainLayout from '../components/Layout/MainLayout';
 import { getContentOriginalUrl, parseContentMetadata } from '../utils/contentUtils';
 
@@ -45,6 +45,7 @@ function ContentDetail() {
   });
   const [loadingAdjacent, setLoadingAdjacent] = useState(false);
   const [refreshingAssets, setRefreshingAssets] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -154,6 +155,33 @@ function ContentDetail() {
     }
   };
 
+  const handleDelete = () => {
+    if (!id) return;
+    Modal.confirm({
+      title: '确认删除',
+      content: '将删除该文章的文字内容、图片、附件等全部内容，此操作不可恢复。确定要删除吗？',
+      okText: '确认删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          setDeleting(true);
+          const res: any = await contentApi.delete(id);
+          if (res?.code === 200) {
+            message.success('已删除');
+            navigate(-1);
+          } else {
+            message.error(res?.message || '删除失败');
+          }
+        } catch (error) {
+          message.error(getApiErrorMessage(error, '删除失败'));
+        } finally {
+          setDeleting(false);
+        }
+      },
+    });
+  };
+
   return (
     <MainLayout>
       <Card
@@ -230,6 +258,15 @@ function ContentDetail() {
                 onClick={handleRefreshAssets}
               >
                 刷新图片
+              </Button>
+              <Button
+                icon={<DeleteOutlined />}
+                type="primary"
+                danger
+                loading={deleting}
+                onClick={handleDelete}
+              >
+                删除文章
               </Button>
             </Space>
 
@@ -351,7 +388,7 @@ function ContentDetail() {
                     {downloadedFiles.map((f, i) => {
                       const localUrl = f.local_url;
                       if (!localUrl) return null;
-                      const fullUrl = getPlatformAvatarSrc(localUrl) || localUrl;
+                      const fullUrl = getContentAttachmentUrl(localUrl) || localUrl;
                       const isPdf = /\.pdf$/i.test(localUrl);
                       return (
                         <div key={f.file_id || i}>

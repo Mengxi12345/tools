@@ -1,10 +1,10 @@
 package com.caat.service;
 
+import com.caat.config.UploadDirResolver;
 import com.caat.exception.BusinessException;
 import com.caat.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -40,9 +40,7 @@ public class ContentAssetService {
     private static final int DOWNLOAD_MAX_RETRIES = 3;
     private static final long DOWNLOAD_RETRY_DELAY_MS = 800;
 
-    @Value("${app.upload-dir:uploads}")
-    private String uploadDir;
-
+    private final UploadDirResolver uploadDirResolver;
     private final RestTemplate restTemplate;
     private final RestTemplate timeStoreRestTemplate;
 
@@ -55,8 +53,10 @@ public class ContentAssetService {
         return "https://os-bucket-pm.oss-accelerate.aliyuncs.com/" + url.substring("https://img.timestore.vip/".length());
     }
 
-    public ContentAssetService(RestTemplate restTemplate,
+    public ContentAssetService(UploadDirResolver uploadDirResolver,
+                              RestTemplate restTemplate,
                               @Qualifier("timeStoreRestTemplate") RestTemplate timeStoreRestTemplate) {
+        this.uploadDirResolver = uploadDirResolver;
         this.restTemplate = restTemplate;
         this.timeStoreRestTemplate = timeStoreRestTemplate;
     }
@@ -106,7 +106,7 @@ public class ContentAssetService {
                 if (ext == null) ext = extFromUrl(trimmed);
                 if (ext == null || !IMAGE_EXT.contains(ext.toLowerCase(Locale.ROOT))) ext = "png";
                 String filename = UUID.randomUUID() + "." + ext;
-                Path dir = Paths.get(uploadDir, IMAGES_SUBDIR).toAbsolutePath().normalize();
+                Path dir = uploadDirResolver.getResolvedPath().resolve(IMAGES_SUBDIR).toAbsolutePath().normalize();
                 Path target = dir.resolve(filename);
                 Files.createDirectories(dir);
                 Files.write(target, resp.getBody());
@@ -184,7 +184,7 @@ public class ContentAssetService {
             if (ext == null || ext.isBlank()) ext = extFromUrl(trimmed);
             if (ext == null || ext.isBlank()) ext = "bin";
             String filename = UUID.randomUUID() + "." + ext.replaceAll("[^a-zA-Z0-9]", "");
-            Path dir = Paths.get(uploadDir, FILES_SUBDIR).toAbsolutePath().normalize();
+            Path dir = uploadDirResolver.getResolvedPath().resolve(FILES_SUBDIR).toAbsolutePath().normalize();
             Path target = dir.resolve(filename);
             Files.createDirectories(dir);
             Files.write(target, resp.getBody());
@@ -215,5 +215,41 @@ public class ContentAssetService {
         String path = q > 0 ? url.substring(0, q) : url;
         int i = path.lastIndexOf('.');
         return i > 0 ? path.substring(i + 1).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "") : null;
+    }
+
+    /**
+     * 根据 URL 删除本地文件。仅处理 /api/v1/uploads/ 开头的本地上传路径。
+     * @param url 如 /api/v1/uploads/contents/images/xxx.png 或带 origin 的完整 URL
+     * @return true 表示已删除，false 表示未删除（非本地路径或文件不存在）
+     */
+    public boolean deleteLocalFileByUrl(String url) {
+        if (url == null || url.isBlank()) return false;
+        String u = url.trim();
+        // 提取 /api/v1/uploads/ 之后的相对路径
+        String prefix = "/api/v1/uploads/";
+        int idx = u.indexOf(prefix);
+        if (idx < 0) {
+            // 可能是完整 URL，如 https://xxx/api/v1/uploads/contents/images/xxx.png
+            idx = u.lastIndexOf(prefix);
+            if (idx < 0) return false;
+        }
+        String relPath = u.substring(idx + prefix.length());
+        if (relPath.isEmpty()) return false;
+        try {
+            Path base = uploadDirResolver.getResolvedPath().toAbsolutePath().normalize();
+            Path target = base.resolve(relPath).toAbsolutePath().normalize();
+            if (!target.startsWith(base)) {
+                log.warn("拒绝删除非 uploads 目录下的文件: url={}", url);
+                return false;
+            }
+            if (Files.exists(target) && Files.isRegularFile(target)) {
+                Files.delete(target);
+                log.info("已删除内容关联文件: {}", relPath);
+                return true;
+            }
+        } catch (Exception e) {
+            log.warn("删除本地上传文件失败: url={}, error={}", url, e.getMessage());
+        }
+        return false;
     }
 }

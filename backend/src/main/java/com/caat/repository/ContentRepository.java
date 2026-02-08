@@ -219,6 +219,10 @@ public interface ContentRepository extends JpaRepository<Content, UUID> {
     List<Object[]> findContentGrowthTrend(@Param("startDate") LocalDateTime startDate,
                                           @Param("endDate") LocalDateTime endDate);
 
+    /** 按作者（追踪用户）查询该用户下的全部内容（用于删除前清理关联文件） */
+    @Query("SELECT c FROM Content c WHERE c.user.id = :userId")
+    List<Content> findAllByUserId(@Param("userId") UUID userId);
+
     /** 按作者（追踪用户）删除该用户下的全部内容 */
     @Modifying
     @Query("DELETE FROM Content c WHERE c.user.id = :userId")
